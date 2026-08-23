@@ -1,0 +1,288 @@
+2025-09-26 16:35:06.192 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 19:38:06.318 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:00:03.479 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:09:46.177 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:11:02.845 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:12:47.631 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:15:39.642 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:27:29.434 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:33:44.090 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:35:00.688 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\IdeaProjects\hotel_appium_frame2\testng-parallel.xml
+
+2025-09-26 20:35:00.731 INFO  [main] RUN - Allure history injected.
+2025-09-26 20:35:11.602 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 20:35:12.324 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 20:35:34.400 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 20:35:36.292 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 20:35:40.824 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 20:35:53.913 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 20:35:54.676 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 20:36:03.789 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 20:36:17.838 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 20:36:22.897 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 20:36:24.863 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 20:36:36.467 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 20:36:37.226 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 20:36:53.059 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 20:37:15.152 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 20:37:16.073 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 20:37:25.914 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 20:37:45.907 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 20:37:46.909 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 20:38:04.987 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 20:38:23.664 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 20:38:24.413 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 20:38:46.260 INFO  [TestNG-tests-1] RUN - [emulator-5554] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5554\screenshots\tests.Test4_testHotelSearch_T51_1758899325156_shot_FAIL.png
+2025-09-26 20:38:47.445 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5554\videos\tests.Test4_testHotelSearch_T51_1758899327428_video.mp4
+2025-09-26 20:38:47.449 INFO  [TestNG-tests-1] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 20:39:00.346 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 20:39:01.067 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 20:39:14.664 INFO  [TestNG-tests-2] RUN - [emulator-5556] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\screenshots\tests.Test4_testHotelSearch_T52_1758899353981_shot_FAIL.png
+2025-09-26 20:39:15.969 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\videos\tests.Test4_testHotelSearch_T52_1758899355946_video.mp4
+2025-09-26 20:39:15.972 INFO  [TestNG-tests-2] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 20:39:31.654 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 20:39:32.621 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 20:39:47.857 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 20:40:19.851 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 20:40:21.934 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 20:42:04.213 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 20:43:28.540 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:21:35.224 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:22:43.280 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:23:58.907 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:27:22.643 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:29:26.683 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:31:21.960 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:33:07.152 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:33:37.641 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:34:23.197 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:35:38.244 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:36:10.842 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:37:37.905 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 22:38:43.692 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\IdeaProjects\hotel_appium_frame2\testng-parallel.xml
+
+2025-09-26 22:38:43.730 INFO  [main] RUN - Allure history injected.
+2025-09-26 22:38:55.428 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:38:56.122 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:39:15.474 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:39:16.733 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:39:24.583 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 22:39:36.083 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:39:36.945 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:39:43.960 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 22:39:57.100 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:39:57.793 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:39:59.796 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 22:40:10.265 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:40:11.141 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:40:21.228 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 22:40:31.556 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:40:32.067 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:40:52.499 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 22:41:01.958 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:41:02.711 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:41:14.753 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 22:41:27.866 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:41:28.996 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:42:31.514 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 22:42:47.594 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:42:48.339 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:42:56.532 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 22:43:12.460 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:43:13.204 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:43:32.466 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 22:43:32.927 INFO  [TestNG-tests-2] RUN - [emulator-5556] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\screenshots\tests.Test5_testHotelSearch_T52_1758906811686_shot_FAIL.png
+2025-09-26 22:43:34.499 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\videos\tests.Test5_testHotelSearch_T52_1758906814486_video.mp4
+2025-09-26 22:43:34.502 INFO  [TestNG-tests-2] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 22:43:35.509 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 22:45:43.205 INFO  [main] RUN - Allure history injected.
+2025-09-26 22:45:55.546 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:45:56.214 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:45:57.001 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:45:57.878 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:46:25.327 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 22:46:26.196 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 22:46:38.677 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:46:39.396 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:46:40.119 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:46:40.876 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:47:02.282 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 22:47:03.598 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 22:47:14.940 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:47:15.610 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:47:15.728 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:47:16.397 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:48:34.957 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 22:48:37.899 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 22:48:47.181 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties up-to-date (skip duplicate).
+2025-09-26 22:48:47.861 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:48:50.177 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:48:50.911 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:50:01.119 INFO  [TestNG-tests-2] RUN - [emulator-5556] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\screenshots\tests.Test4_testHotelSearch_T54_1758907198670_shot_FAIL.png
+2025-09-26 22:50:06.654 INFO  [TestNG-tests-1] RUN - [emulator-5554] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5554\screenshots\tests.Test4_testHotelSearch_T53_1758907205564_shot_FAIL.png
+2025-09-26 22:50:07.617 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\videos\tests.Test4_testHotelSearch_T54_1758907207562_video.mp4
+2025-09-26 22:50:07.620 INFO  [TestNG-tests-2] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 22:50:08.528 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5554\videos\tests.Test4_testHotelSearch_T53_1758907208500_video.mp4
+2025-09-26 22:50:08.530 INFO  [TestNG-tests-1] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 22:50:22.275 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties up-to-date (skip duplicate).
+2025-09-26 22:50:23.025 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:50:24.419 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:50:25.137 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:51:07.676 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 22:51:20.180 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 22:51:20.862 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 22:59:06.487 INFO  [main] RUN - Allure history injected.
+2025-09-26 22:59:20.301 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 22:59:21.131 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 22:59:22.366 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 22:59:23.109 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 22:59:51.766 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 22:59:55.111 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 23:00:05.811 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties up-to-date (skip duplicate).
+2025-09-26 23:00:06.527 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:00:08.852 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:00:09.669 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:00:30.382 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 23:00:34.958 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 23:00:42.735 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:00:43.310 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:00:45.824 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:00:46.361 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:02:15.577 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 23:02:29.174 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 23:02:29.253 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:02:29.944 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:02:42.440 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:02:43.321 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:03:46.401 INFO  [TestNG-tests-2] RUN - [emulator-5556] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\screenshots\tests.Test4_testHotelSearch_T55_1758908024270_shot_FAIL.png
+2025-09-26 23:03:54.242 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5556\videos\tests.Test4_testHotelSearch_T55_1758908034176_video.mp4
+2025-09-26 23:03:54.246 INFO  [TestNG-tests-2] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 23:04:08.766 INFO  [TestNG-tests-1] RUN - [emulator-5554] Failure screenshot saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5554\screenshots\tests.Test4_testHotelSearch_T54_1758908047021_shot_FAIL.png
+2025-09-26 23:04:12.891 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:04:13.855 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:04:19.707 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording saved: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\media\emulator-5554\videos\tests.Test4_testHotelSearch_T54_1758908059677_video.mp4
+2025-09-26 23:04:19.710 INFO  [TestNG-tests-1] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 23:04:34.805 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:04:35.584 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:04:58.719 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 23:05:27.864 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 23:05:29.228 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 23:06:52.939 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 23:13:36.260 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 23:15:29.048 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 23:17:58.163 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 23:24:08.875 INFO  [main] org.testng.internal.Utils - [TestNG] Running:
+  C:\Users\raxit\AppData\Local\JetBrains\IntelliJIdea2023.1\temp-testng-customsuite.xml
+
+2025-09-26 23:26:30.047 INFO  [main] RUN - Allure history injected.
+2025-09-26 23:26:43.515 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties up-to-date (skip duplicate).
+2025-09-26 23:26:44.179 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:27:03.899 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:27:05.744 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:27:20.959 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 23:27:34.441 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:27:35.524 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:27:36.345 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 23:27:51.916 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:27:53.220 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:28:02.290 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 23:28:14.181 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:28:14.796 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:28:16.424 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testLogin
+2025-09-26 23:28:29.325 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:28:30.016 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:29:52.244 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 23:29:54.669 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testUserProfileUpdate
+2025-09-26 23:30:05.885 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:30:06.475 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:30:09.345 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:30:10.193 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:31:37.788 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 23:31:48.536 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 23:31:57.899 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties up-to-date (skip duplicate).
+2025-09-26 23:31:59.012 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:32:04.961 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:32:05.877 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:32:45.944 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 23:33:01.205 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testHotelSearch
+2025-09-26 23:33:02.351 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 23:49:47.623 INFO  [main] RUN - Allure history injected.
+2025-09-26 23:50:03.800 INFO  [TestNG-tests-2] RUN - [emulator-5556] environment.properties written/updated.
+2025-09-26 23:50:05.122 INFO  [TestNG-tests-2] RUN - [emulator-5556] Screen recording started.
+2025-09-26 23:50:07.583 INFO  [TestNG-tests-1] RUN - [emulator-5554] environment.properties written/updated.
+2025-09-26 23:50:08.441 INFO  [TestNG-tests-1] RUN - [emulator-5554] Screen recording started.
+2025-09-26 23:50:42.952 INFO  [TestNG-tests-2] RUN - [emulator-5556] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 23:50:47.635 INFO  [TestNG-tests-1] RUN - [emulator-5554] Recording discarded (status: SUCCESS): testSignupFlow
+2025-09-26 23:50:49.046 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 23:53:04.340 INFO  [main] RUN - Allure history injected.
+2025-09-26 23:53:04.443 ERROR [TestNG-tests-1] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:53:04.443 ERROR [TestNG-tests-2] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:53:04.446 INFO  [TestNG-tests-2] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 23:53:04.446 INFO  [TestNG-tests-1] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 23:53:04.447 ERROR [TestNG-tests-2] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:53:04.448 ERROR [TestNG-tests-1] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:53:04.634 INFO  [main] RUN - Suite finished: Parallel Devices
+2025-09-26 23:54:52.947 INFO  [main] RUN - Allure history injected.
+2025-09-26 23:54:53.064 ERROR [TestNG-tests-2] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:54:53.064 ERROR [TestNG-tests-1] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:54:53.067 INFO  [TestNG-tests-2] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 23:54:53.067 INFO  [TestNG-tests-1] RUN - Run log attached: C:\Users\raxit\IdeaProjects\hotel_appium_frame2\logs\test-run.log
+2025-09-26 23:54:53.070 ERROR [TestNG-tests-2] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:54:53.070 ERROR [TestNG-tests-1] io.qameta.allure.AllureLifecycle - Could not add attachment: no test is running
+2025-09-26 23:54:53.304 INFO  [main] RUN - Suite finished: Parallel Devices
