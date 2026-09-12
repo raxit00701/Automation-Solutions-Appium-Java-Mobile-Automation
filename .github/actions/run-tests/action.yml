@@ -1,0 +1,160 @@
+name: Run Appium Tests
+
+description: Run Appium TestNG tests using Maven
+
+inputs:
+  test-dir:
+    description: Test directory
+    required: false
+    default: 'src/test/java/tests'
+
+  udid:
+    description: Android device UDID
+    required: true
+
+  server-port:
+    description: Appium server port
+    required: true
+
+  system-port:
+    description: UiAutomator2 system port
+    required: true
+
+  chrome-port:
+    description: Chrome driver port
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+
+    # ---------------------------------------------------------
+    # SHOW ENVIRONMENT
+    # ---------------------------------------------------------
+    - name: Show test environment
+      shell: powershell
+      run: |
+        Write-Host "======================================"
+        Write-Host "      APPIUM TEST ENVIRONMENT"
+        Write-Host "======================================"
+
+        Write-Host "Test directory : ${{ inputs.test-dir }}"
+        Write-Host "UDID           : ${{ inputs.udid }}"
+        Write-Host "Appium port    : ${{ inputs.server-port }}"
+        Write-Host "System port    : ${{ inputs.system-port }}"
+        Write-Host "Chrome port    : ${{ inputs.chrome-port }}"
+
+        Write-Host "======================================"
+
+    # ---------------------------------------------------------
+    # START APPIUM
+    # ---------------------------------------------------------
+    - name: Start Appium server
+      shell: powershell
+      run: |
+        $port = "${{ inputs.server-port }}"
+
+        Write-Host "Starting Appium on port $port..."
+
+        Start-Process `
+          -FilePath "appium" `
+          -ArgumentList "--address 127.0.0.1 --port $port --base-path /wd/hub" `
+          -RedirectStandardOutput "$env:RUNNER_TEMP\appium.log" `
+          -RedirectStandardError "$env:RUNNER_TEMP\appium-error.log"
+
+        Write-Host "Waiting for Appium server..."
+
+        $ready = $false
+
+        for ($i = 0; $i -lt 30; $i++) {
+
+            try {
+
+                $response = Invoke-WebRequest `
+                    -Uri "http://127.0.0.1:$port/wd/hub/status" `
+                    -UseBasicParsing `
+                    -TimeoutSec 2
+
+                if ($response.StatusCode -eq 200) {
+                    $ready = $true
+                    break
+                }
+
+            } catch {
+                Write-Host "Appium not ready yet..."
+            }
+
+            Start-Sleep -Seconds 2
+        }
+
+        if (-not $ready) {
+
+            Write-Host "Appium failed to start."
+
+            if (Test-Path "$env:RUNNER_TEMP\appium.log") {
+                Get-Content "$env:RUNNER_TEMP\appium.log"
+            }
+
+            if (Test-Path "$env:RUNNER_TEMP\appium-error.log") {
+                Get-Content "$env:RUNNER_TEMP\appium-error.log"
+            }
+
+            exit 1
+        }
+
+        Write-Host "Appium server is ready."
+
+    # ---------------------------------------------------------
+    # RUN MAVEN
+    # ---------------------------------------------------------
+    - name: Run TestNG tests
+      shell: powershell
+      run: |
+        Write-Host "======================================"
+        Write-Host "         RUNNING APPIUM TESTS"
+        Write-Host "======================================"
+
+        mvn clean test `
+          "-Dudid=${{ inputs.udid }}" `
+          "-DserverPort=${{ inputs.server-port }}" `
+          "-DsystemPort=${{ inputs.system-port }}" `
+          "-DchromePort=${{ inputs.chrome-port }}" `
+          "-DtestDir=${{ inputs.test-dir }}" `
+          "-Dheadless=$env:HEADLESS"
+
+        $exitCode = $LASTEXITCODE
+
+        Write-Host "Maven exit code: $exitCode"
+
+        if ($exitCode -ne 0) {
+            Write-Host "Tests failed."
+            exit $exitCode
+        }
+
+        Write-Host "Tests completed successfully."
+
+    # ---------------------------------------------------------
+    # SHOW TEST OUTPUT
+    # ---------------------------------------------------------
+    - name: Show generated test directories
+      if: always()
+      shell: powershell
+      run: |
+        Write-Host "Checking generated test files..."
+
+        if (Test-Path "target") {
+            Write-Host "target directory exists."
+        }
+
+        if (Test-Path "allure-results") {
+            Write-Host "allure-results directory exists."
+        }
+
+        if (Test-Path "test-output") {
+            Write-Host "test-output directory exists."
+        }
+
+        if (Test-Path "screenshots") {
+            Write-Host "screenshots directory exists."
+        }
