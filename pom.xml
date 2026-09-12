@@ -42,6 +42,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+    <groupId>io.github.cdimascio</groupId>
+    <artifactId>java-dotenv</artifactId>
+    <version>5.2.2</version>
+    </dependency>
+
         <!-- TestNG -->
         <dependency>
             <groupId>org.testng</groupId>
@@ -109,8 +115,8 @@
                 <version>3.3.1</version>
                 <configuration>
                     <suiteXmlFiles>
-                        <suiteXmlFile>${project.basedir}/testng-parallel.xml</suiteXmlFile>
-                    </suiteXmlFiles>
+    <suiteXmlFile>${project.basedir}/testng.xml</suiteXmlFile>
+            </suiteXmlFiles>
 
                     <!-- Make Allure dirs/addressable at runtime + handy props -->
                     <systemPropertyVariables>

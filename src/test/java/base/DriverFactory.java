@@ -1,73 +1,527 @@
+
 package base;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
-import io.appium.java_client.Setting;
 import io.appium.java_client.android.AndroidDriver;
 import io.appium.java_client.android.options.UiAutomator2Options;
+import io.github.cdimascio.dotenv.Dotenv;
 import utils.ResetPolicy;
 
-public class DriverFactory {
+public final class DriverFactory {
 
-    private static final ThreadLocal<AndroidDriver> TL_DRIVER =
+    private static final ThreadLocal<AndroidDriver> DRIVER =
             new ThreadLocal<>();
 
+    private DriverFactory() {
+        // Utility class
+    }
+
+    // ============================================================
+    // DRIVER ACCESS
+    // ============================================================
+
     public static AndroidDriver getDriver() {
-        return TL_DRIVER.get();
-    }
 
-    public static void quitDriver() {
-        AndroidDriver d = TL_DRIVER.get();
+        AndroidDriver driver = DRIVER.get();
 
-        if (d != null) {
-            try {
-                d.quit();
-            } catch (Exception ignored) {
-            } finally {
-                TL_DRIVER.remove();
-            }
+        if (driver == null) {
+            throw new IllegalStateException(
+                    "Driver has not been initialized for the current thread."
+            );
         }
+
+        return driver;
     }
+
+    public static boolean isDriverInitialized() {
+        return DRIVER.get() != null;
+    }
+
+    // ============================================================
+    // INITIALIZE DRIVER
+    // ============================================================
 
     public static void initDriver(
             String udid,
             int serverPort,
             int systemPort,
-            int chromePort,
-            ResetPolicy.Mode resetMode
-    ) throws MalformedURLException {
+            int chromeDriverPort,
+            ResetPolicy.Mode resetPolicy
+    ) {
 
-        /*
-         * ---------------------------------------------------------
-         * App under test
-         * ---------------------------------------------------------
-         */
-        String appPackage = System.getProperty(
-                "appPackage",
-                "com.swaglabsmobileapp"
+        String environment =
+                System.getProperty("env", "qa")
+                        .trim()
+                        .toLowerCase();
+
+        Dotenv dotenv = loadEnvironment(environment);
+
+        // --------------------------------------------------------
+        // APP CONFIGURATION
+        // --------------------------------------------------------
+
+        String appPackage =
+                getRequired(dotenv, "APP_PACKAGE");
+
+        String appActivity =
+                getRequired(dotenv, "APP_ACTIVITY");
+
+        String appWaitActivity =
+                get(dotenv, "APP_WAIT_ACTIVITY", "*");
+
+        // --------------------------------------------------------
+        // PLATFORM CONFIGURATION
+        // --------------------------------------------------------
+
+        String platformName =
+                get(dotenv, "PLATFORM_NAME", "Android");
+
+        String automationName =
+                get(dotenv, "AUTOMATION_NAME", "UiAutomator2");
+
+        String deviceName =
+                get(dotenv, "DEVICE_NAME", "Android");
+
+        // --------------------------------------------------------
+        // ADB CONFIGURATION
+        // --------------------------------------------------------
+
+        String adbPath =
+                get(dotenv, "ADB_PATH", "adb");
+
+        int adbExecTimeout =
+                getInt(dotenv, "ADB_EXEC_TIMEOUT", 60);
+
+        // --------------------------------------------------------
+        // APPIUM TIMEOUTS
+        // --------------------------------------------------------
+
+        int newCommandTimeout =
+                getInt(dotenv, "NEW_COMMAND_TIMEOUT", 300);
+
+        int waitForIdleTimeout =
+                getInt(dotenv, "WAIT_FOR_IDLE_TIMEOUT", 0);
+
+        // --------------------------------------------------------
+        // APPIUM BEHAVIOR
+        // --------------------------------------------------------
+
+        boolean appWaitForQuiescence =
+                getBoolean(
+                        dotenv,
+                        "APP_WAIT_FOR_QUIESCENCE",
+                        false
+                );
+
+        boolean disableWindowAnimation =
+                getBoolean(
+                        dotenv,
+                        "DISABLE_WINDOW_ANIMATION",
+                        true
+                );
+
+        boolean autoGrantPermissions =
+                getBoolean(
+                        dotenv,
+                        "AUTO_GRANT_PERMISSIONS",
+                        true
+                );
+
+        boolean unicodeKeyboard =
+                getBoolean(
+                        dotenv,
+                        "UNICODE_KEYBOARD",
+                        true
+                );
+
+        boolean resetKeyboard =
+                getBoolean(
+                        dotenv,
+                        "RESET_KEYBOARD",
+                        true
+                );
+
+        // --------------------------------------------------------
+        // CHROMEDRIVER
+        // --------------------------------------------------------
+
+        String chromedriverExecutable =
+                get(
+                        dotenv,
+                        "CHROMEDRIVER_EXECUTABLE",
+                        ""
+                );
+
+        // --------------------------------------------------------
+        // DEFAULT RESET POLICY
+        // --------------------------------------------------------
+
+        if (resetPolicy == null) {
+            resetPolicy = ResetPolicy.Mode.NO_RESET;
+        }
+
+        // --------------------------------------------------------
+        // LOG CONFIGURATION
+        // --------------------------------------------------------
+
+        System.out.println();
+        System.out.println(
+                "============================================================"
+        );
+        System.out.println(
+                "[DRIVER-FACTORY] Starting driver"
+        );
+        System.out.println(
+                "============================================================"
         );
 
-        String appActivity = System.getProperty(
-                "appActivity",
-                ".SplashActivity"
+        System.out.println(
+                "[ENV] environment       = " + environment
         );
 
-        /*
-         * ---------------------------------------------------------
-         * Apply reset policy BEFORE starting Appium session
-         * ---------------------------------------------------------
-         */
-        switch (resetMode) {
+        System.out.println(
+                "[ENV] appPackage        = " + appPackage
+        );
+
+        System.out.println(
+                "[ENV] appActivity       = " + appActivity
+        );
+
+        System.out.println(
+                "[ENV] platformName      = " + platformName
+        );
+
+        System.out.println(
+                "[ENV] automationName    = " + automationName
+        );
+
+        System.out.println(
+                "[ENV] deviceName        = " + deviceName
+        );
+
+        System.out.println(
+                "[ENV] adbPath           = " + adbPath
+        );
+
+        System.out.println(
+                "[EXEC] udid             = " + udid
+        );
+
+        System.out.println(
+                "[EXEC] serverPort       = " + serverPort
+        );
+
+        System.out.println(
+                "[EXEC] systemPort       = " + systemPort
+        );
+
+        System.out.println(
+                "[EXEC] chromePort       = " + chromeDriverPort
+        );
+
+        System.out.println(
+                "[RESET] policy          = " + resetPolicy
+        );
+
+        System.out.println(
+                "============================================================"
+        );
+
+        // --------------------------------------------------------
+        // VALIDATION
+        // --------------------------------------------------------
+
+        if (udid == null || udid.isBlank()) {
+            throw new IllegalArgumentException(
+                    "UDID is required."
+            );
+        }
+
+        if (serverPort <= 0) {
+            throw new IllegalArgumentException(
+                    "Invalid Appium server port: " +
+                            serverPort
+            );
+        }
+
+        if (systemPort <= 0) {
+            throw new IllegalArgumentException(
+                    "Invalid system port: " +
+                            systemPort
+            );
+        }
+
+        // --------------------------------------------------------
+        // APPLY RESET POLICY
+        // --------------------------------------------------------
+
+        applyResetPolicy(
+                resetPolicy,
+                adbPath,
+                udid,
+                appPackage
+        );
+
+        // --------------------------------------------------------
+        // APPIUM OPTIONS
+        // --------------------------------------------------------
+
+        UiAutomator2Options options =
+                new UiAutomator2Options();
+
+        // Basic capabilities
+        options.setPlatformName(platformName);
+        options.setAutomationName(automationName);
+        options.setDeviceName(deviceName);
+        options.setUdid(udid);
+
+        // App capabilities
+        options.setAppPackage(appPackage);
+        options.setAppActivity(appActivity);
+        options.setAppWaitActivity(appWaitActivity);
+
+        // Timeouts
+        options.setAdbExecTimeout(
+                Duration.ofSeconds(adbExecTimeout)
+        );
+
+        options.setNewCommandTimeout(
+                Duration.ofSeconds(newCommandTimeout)
+        );
+
+        // --------------------------------------------------------
+        // CAPABILITIES THAT ARE NOT EXPOSED AS JAVA-CLIENT
+        // 9.2.2 TYPED SETTERS
+        // --------------------------------------------------------
+
+        options.setCapability(
+                "appium:appWaitForQuiescence",
+                appWaitForQuiescence
+        );
+
+        options.setCapability(
+                "appium:unicodeKeyboard",
+                unicodeKeyboard
+        );
+
+        options.setCapability(
+                "appium:resetKeyboard",
+                resetKeyboard
+        );
+
+        // --------------------------------------------------------
+        // OTHER APPIUM CAPABILITIES
+        // --------------------------------------------------------
+
+        options.setDisableWindowAnimation(
+                disableWindowAnimation
+        );
+
+        options.setAutoGrantPermissions(
+                autoGrantPermissions
+        );
+
+        // --------------------------------------------------------
+        // SYSTEM PORT
+        // --------------------------------------------------------
+
+        options.setSystemPort(systemPort);
+
+        // --------------------------------------------------------
+        // CHROMEDRIVER PORT
+        // --------------------------------------------------------
+
+        if (chromeDriverPort > 0) {
+
+            options.setChromedriverPort(
+                    chromeDriverPort
+            );
+        }
+
+        // --------------------------------------------------------
+        // CHROMEDRIVER EXECUTABLE
+        // --------------------------------------------------------
+
+        if (!chromedriverExecutable.isBlank()) {
+
+            options.setChromedriverExecutable(
+                    chromedriverExecutable
+            );
+        }
+
+        // --------------------------------------------------------
+        // RESET CAPABILITIES
+        // --------------------------------------------------------
+
+        applyResetCapabilities(
+                options,
+                resetPolicy
+        );
+
+        // --------------------------------------------------------
+        // APPIUM SERVER
+        // --------------------------------------------------------
+
+        String serverUrl =
+                "http://127.0.0.1:" + serverPort;
+
+        System.out.println();
+        System.out.println(
+                "[DRIVER] Creating AndroidDriver..."
+        );
+
+        System.out.println(
+                "[DRIVER] Appium server = " +
+                        serverUrl
+        );
+
+        // --------------------------------------------------------
+        // CREATE DRIVER
+        // --------------------------------------------------------
+
+        try {
+
+            AndroidDriver driver =
+                    new AndroidDriver(
+                            URI.create(serverUrl).toURL(),
+                            options
+                    );
+
+            DRIVER.set(driver);
+
+            // ----------------------------------------------------
+            // WAIT FOR IDLE TIMEOUT
+            // ----------------------------------------------------
+
+            if (waitForIdleTimeout >= 0) {
+
+                try {
+
+                    driver.setSetting(
+                            "waitForIdleTimeout",
+                            waitForIdleTimeout
+                    );
+
+                } catch (Exception e) {
+
+                    System.out.println(
+                            "[WARN] Could not set " +
+                                    "waitForIdleTimeout: " +
+                                    e.getMessage()
+                    );
+                }
+            }
+
+            System.out.println();
+            System.out.println(
+                    "[DRIVER] Driver initialized successfully."
+            );
+
+            System.out.println(
+                    "[DRIVER] Session ID = " +
+                            driver.getSessionId()
+            );
+
+            System.out.println();
+
+        } catch (Exception e) {
+
+            DRIVER.remove();
+
+            System.err.println();
+            System.err.println(
+                    "============================================================"
+            );
+
+            System.err.println(
+                    "[DRIVER-ERROR] Failed to create AndroidDriver"
+            );
+
+            System.err.println(
+                    "============================================================"
+            );
+
+            System.err.println(
+                    "[DRIVER-ERROR] Appium server = " +
+                            serverUrl
+            );
+
+            System.err.println(
+                    "[DRIVER-ERROR] UDID            = " +
+                            udid
+            );
+
+            System.err.println(
+                    "[DRIVER-ERROR] systemPort      = " +
+                            systemPort
+            );
+
+            System.err.println(
+                    "[DRIVER-ERROR] chromePort      = " +
+                            chromeDriverPort
+            );
+
+            System.err.println(
+                    "[DRIVER-ERROR] Cause           = " +
+                            e.getMessage()
+            );
+
+            System.err.println(
+                    "============================================================"
+            );
+
+            throw new RuntimeException(
+                    "Unable to create AndroidDriver. " +
+                            "Make sure Appium is running on port " +
+                            serverPort + ".",
+                    e
+            );
+        }
+    }
+
+    // ============================================================
+    // RESET POLICY
+    // ============================================================
+
+    private static void applyResetPolicy(
+            ResetPolicy.Mode resetPolicy,
+            String adbPath,
+            String udid,
+            String appPackage
+    ) {
+
+        System.out.println(
+                "[RESET] Applying policy: " +
+                        resetPolicy
+        );
+
+        switch (resetPolicy) {
 
             case NO_RESET:
 
                 System.out.println(
                         "[RESET] NO_RESET -> preserving app data"
+                );
+
+                break;
+
+            case FAST_RESET:
+
+                System.out.println(
+                        "[RESET] FAST_RESET -> force-stopping app"
+                );
+
+                forceStopApp(
+                        adbPath,
+                        udid,
+                        appPackage
                 );
 
                 break;
@@ -78,373 +532,180 @@ public class DriverFactory {
                         "[RESET] RESET_DATA -> clearing app data"
                 );
 
-                clearAppData(udid, appPackage);
-
-                break;
-
-            case FAST_RESET:
-
-                System.out.println(
-                        "[RESET] FAST_RESET -> clearing app data"
+                clearAppData(
+                        adbPath,
+                        udid,
+                        appPackage
                 );
-
-                clearAppData(udid, appPackage);
 
                 break;
 
             case FULL_RESET:
 
                 System.out.println(
-                        "[RESET] FULL_RESET -> uninstalling app"
+                        "[RESET] FULL_RESET -> clearing app data"
                 );
 
-                uninstallApp(udid, appPackage);
+                clearAppData(
+                        adbPath,
+                        udid,
+                        appPackage
+                );
 
                 break;
 
             case INHERIT:
+
+                System.out.println(
+                        "[RESET] INHERIT -> preserving app data"
+                );
+
+                break;
+
             default:
 
-                boolean noReset =
-                        Boolean.parseBoolean(
-                                System.getProperty(
-                                        "noReset",
-                                        "true"
-                                )
-                        );
-
-                boolean fullReset =
-                        Boolean.parseBoolean(
-                                System.getProperty(
-                                        "fullReset",
-                                        "false"
-                                )
-                        );
-
-                if (fullReset) {
-
-                    System.out.println(
-                            "[RESET] INHERIT -> FULL_RESET"
-                    );
-
-                    uninstallApp(
-                            udid,
-                            appPackage
-                    );
-
-                } else if (!noReset) {
-
-                    System.out.println(
-                            "[RESET] INHERIT -> RESET_DATA"
-                    );
-
-                    clearAppData(
-                            udid,
-                            appPackage
-                    );
-
-                } else {
-
-                    System.out.println(
-                            "[RESET] INHERIT -> NO_RESET"
-                    );
-                }
+                System.out.println(
+                        "[RESET] Unknown policy -> " +
+                                "preserving app data"
+                );
 
                 break;
         }
-
-        /*
-         * ---------------------------------------------------------
-         * Create Appium options
-         * ---------------------------------------------------------
-         */
-        UiAutomator2Options options =
-                new UiAutomator2Options();
-
-        // Device
-        options.setDeviceName(
-                (udid == null || udid.isBlank())
-                        ? "Android"
-                        : udid
-        );
-
-        if (udid != null && !udid.isBlank()) {
-            options.setUdid(udid);
-        }
-
-        // App
-        options.setAppPackage(appPackage);
-        options.setAppActivity(appActivity);
-        options.setAppWaitActivity("*");
-
-        // Timeouts
-        options.setAdbExecTimeout(
-                Duration.ofSeconds(60)
-        );
-
-        options.setNewCommandTimeout(
-                Duration.ofSeconds(300)
-        );
-
-        // QoL
-        options.setCapability(
-                "appWaitForQuiescence",
-                false
-        );
-
-        options.setCapability(
-                "disableWindowAnimation",
-                true
-        );
-
-        options.setCapability(
-                "autoGrantPermissions",
-                true
-        );
-
-        options.setCapability(
-                "unicodeKeyboard",
-                true
-        );
-
-        options.setCapability(
-                "resetKeyboard",
-                true
-        );
-
-        // Parallel ports
-        options.setCapability(
-                "systemPort",
-                systemPort
-        );
-
-        options.setCapability(
-                "chromedriverPort",
-                chromePort
-        );
-
-        /*
-         * ---------------------------------------------------------
-         * IMPORTANT
-         *
-         * Reset has already been handled above.
-         *
-         * Therefore Appium must NOT reset the app again.
-         * ---------------------------------------------------------
-         */
-        options.setNoReset(true);
-        options.setFullReset(false);
-
-        // ChromeDriver
-        String chromeExec =
-                System.getProperty(
-                        "chromedriverExecutable",
-                        "C:\\chromedriver.exe"
-                );
-
-        options.setCapability(
-                "chromedriverExecutable",
-                chromeExec
-        );
-
-        /*
-         * ---------------------------------------------------------
-         * Start Appium session
-         * ---------------------------------------------------------
-         */
-        String serverUrl =
-                "http://127.0.0.1:" + serverPort;
-
-        System.out.printf(
-                "[DRIVER-FACTORY] " +
-                "Starting driver: " +
-                "udid=%s server=%d system=%d chrome=%d " +
-                "reset=%s noReset=true fullReset=false " +
-                "app=%s/%s%n",
-                udid,
-                serverPort,
-                systemPort,
-                chromePort,
-                resetMode,
-                appPackage,
-                appActivity
-        );
-
-        AndroidDriver d;
-
-        try {
-
-            d = new AndroidDriver(
-                    new URL(serverUrl),
-                    options
-            );
-
-        } catch (
-                org.openqa.selenium.SessionNotCreatedException e
-        ) {
-
-            String msg =
-                    String.valueOf(e.getMessage());
-
-            if (msg.contains("local port")
-                    && msg.contains("busy")) {
-
-                int newSystemPort =
-                        systemPort + 1;
-
-                int newChromePort =
-                        chromePort + 2;
-
-                options.setCapability(
-                        "systemPort",
-                        newSystemPort
-                );
-
-                options.setCapability(
-                        "chromedriverPort",
-                        newChromePort
-                );
-
-                System.out.printf(
-                        "[DRIVER-FACTORY][RETRY] " +
-                        "systemPort %d busy -> " +
-                        "retry systemPort=%d " +
-                        "chromePort=%d%n",
-                        systemPort,
-                        newSystemPort,
-                        newChromePort
-                );
-
-                d = new AndroidDriver(
-                        new URL(serverUrl),
-                        options
-                );
-
-            } else {
-                throw e;
-            }
-        }
-
-        TL_DRIVER.set(d);
-
-        /*
-         * Faster element readiness
-         */
-        try {
-
-            d.setSetting(
-                    Setting.WAIT_FOR_IDLE_TIMEOUT,
-                    0
-            );
-
-        } catch (Exception ignored) {
-        }
-
-        System.out.printf(
-                "[DRIVER-FACTORY] " +
-                "Driver started successfully: " +
-                "reset=%s app=%s/%s%n",
-                resetMode,
-                appPackage,
-                appActivity
-        );
     }
 
-    /*
-     * =========================================================
-     * RESET HELPERS
-     * =========================================================
-     */
+    // ============================================================
+    // RESET CAPABILITIES
+    // ============================================================
 
-    private static void clearAppData(
+    private static void applyResetCapabilities(
+            UiAutomator2Options options,
+            ResetPolicy.Mode resetPolicy
+    ) {
+
+        switch (resetPolicy) {
+
+            case NO_RESET:
+
+                options.setNoReset(true);
+                options.setFullReset(false);
+
+                break;
+
+            case FAST_RESET:
+
+                options.setNoReset(true);
+                options.setFullReset(false);
+
+                break;
+
+            case RESET_DATA:
+
+                options.setNoReset(true);
+                options.setFullReset(false);
+
+                break;
+
+            case FULL_RESET:
+
+                options.setNoReset(false);
+                options.setFullReset(true);
+
+                break;
+
+            case INHERIT:
+
+                options.setNoReset(true);
+                options.setFullReset(false);
+
+                break;
+
+            default:
+
+                options.setNoReset(true);
+                options.setFullReset(false);
+
+                break;
+        }
+    }
+
+    // ============================================================
+    // ADB - FORCE STOP
+    // ============================================================
+
+    private static void forceStopApp(
+            String adbPath,
             String udid,
             String appPackage
     ) {
 
-        String device =
-                (udid == null || udid.isBlank())
-                        ? "emulator-5554"
-                        : udid;
+        executeAdb(
+                adbPath,
+                udid,
+                "shell",
+                "am",
+                "force-stop",
+                appPackage
+        );
+    }
+
+    // ============================================================
+    // ADB - CLEAR DATA
+    // ============================================================
+
+    private static void clearAppData(
+            String adbPath,
+            String udid,
+            String appPackage
+    ) {
 
         executeAdb(
-                device,
+                adbPath,
+                udid,
                 "shell",
                 "pm",
                 "clear",
                 appPackage
         );
-
-        System.out.println(
-                "[RESET] App data cleared: "
-                        + appPackage
-        );
     }
 
-    private static void uninstallApp(
-            String udid,
-            String appPackage
-    ) {
+    // ============================================================
+    // EXECUTE ADB
+    // ============================================================
 
-        String device =
-                (udid == null || udid.isBlank())
-                        ? "emulator-5554"
-                        : udid;
-
-        executeAdb(
-                device,
-                "uninstall",
-                appPackage
-        );
-
-        System.out.println(
-                "[RESET] App uninstalled: "
-                        + appPackage
-        );
-    }
-
-    private static void executeAdb(
+    private static List<String> executeAdb(
+            String adbPath,
             String udid,
             String... arguments
     ) {
 
+        List<String> command =
+                new ArrayList<>();
+
+        command.add(adbPath);
+        command.add("-s");
+        command.add(udid);
+
+        for (String argument : arguments) {
+            command.add(argument);
+        }
+
+        System.out.println(
+                "[ADB] " +
+                        String.join(" ", command)
+        );
+
+        ProcessBuilder processBuilder =
+                new ProcessBuilder(command);
+
+        processBuilder.redirectErrorStream(true);
+
         try {
 
-            String adb =
-                    System.getProperty(
-                            "adbPath",
-                            "adb"
-                    );
-
-            String[] command =
-                    new String[arguments.length + 3];
-
-            command[0] = adb;
-            command[1] = "-s";
-            command[2] = udid;
-
-            System.arraycopy(
-                    arguments,
-                    0,
-                    command,
-                    3,
-                    arguments.length
-            );
-
-            System.out.println(
-                    "[ADB] "
-                            + String.join(
-                                    " ",
-                                    command
-                            )
-            );
-
             Process process =
-                    new ProcessBuilder(command)
-                            .redirectErrorStream(true)
-                            .start();
+                    processBuilder.start();
 
-            StringBuilder output =
-                    new StringBuilder();
+            List<String> output =
+                    new ArrayList<>();
 
             try (
                     BufferedReader reader =
@@ -457,45 +718,233 @@ public class DriverFactory {
 
                 String line;
 
-                while ((line = reader.readLine()) != null) {
+                while (
+                        (line = reader.readLine()) != null
+                ) {
 
-                    output.append(line)
-                            .append(System.lineSeparator());
+                    output.add(line);
+
+                    System.out.println(
+                            "[ADB] " + line
+                    );
                 }
             }
 
             int exitCode =
                     process.waitFor();
 
-            System.out.print(
-                    output.toString()
-            );
-
             if (exitCode != 0) {
 
                 throw new RuntimeException(
-                        "ADB command failed. " +
-                        "Exit code=" + exitCode +
-                        "\nOutput=" + output
+                        "ADB command failed with exit code " +
+                                exitCode +
+                                ": " +
+                                String.join(
+                                        " ",
+                                        command
+                                )
                 );
             }
+
+            return output;
 
         } catch (IOException e) {
 
             throw new RuntimeException(
-                    "Failed to execute ADB command",
+                    "Could not execute ADB command: " +
+                            String.join(
+                                    " ",
+                                    command
+                            ),
                     e
             );
 
         } catch (InterruptedException e) {
 
-            Thread.currentThread()
-                    .interrupt();
+            Thread.currentThread().interrupt();
 
             throw new RuntimeException(
-                    "ADB command interrupted",
+                    "ADB command was interrupted.",
                     e
             );
         }
+    }
+
+    // ============================================================
+    // QUIT DRIVER
+    // ============================================================
+
+    public static void quitDriver() {
+
+        AndroidDriver driver =
+                DRIVER.get();
+
+        if (driver == null) {
+            return;
+        }
+
+        try {
+
+            System.out.println(
+                    "[DRIVER] Quitting driver..."
+            );
+
+            driver.quit();
+
+            System.out.println(
+                    "[DRIVER] Driver quit successfully."
+            );
+
+        } catch (Exception e) {
+
+            System.err.println(
+                    "[DRIVER-WARN] Error while quitting driver: " +
+                            e.getMessage()
+            );
+
+        } finally {
+
+            DRIVER.remove();
+        }
+    }
+
+    // ============================================================
+    // ENVIRONMENT LOADING
+    // ============================================================
+
+    private static Dotenv loadEnvironment(
+            String environment
+    ) {
+
+        String fileName =
+                ".env." + environment;
+
+        try {
+
+            Dotenv dotenv =
+                    Dotenv.configure()
+                            .directory("./env")
+                            .filename(fileName)
+                            .load();
+
+            System.out.println(
+                    "[ENV] Loaded environment: " +
+                            environment +
+                            " (" +
+                            fileName +
+                            ")"
+            );
+
+            return dotenv;
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "Could not load environment file: " +
+                            "env/" + fileName,
+                    e
+            );
+        }
+    }
+
+    // ============================================================
+    // ENV STRING
+    // ============================================================
+
+    private static String get(
+            Dotenv dotenv,
+            String key,
+            String defaultValue
+    ) {
+
+        String value =
+                dotenv.get(key);
+
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+
+        return value.trim();
+    }
+
+    // ============================================================
+    // ENV REQUIRED STRING
+    // ============================================================
+
+    private static String getRequired(
+            Dotenv dotenv,
+            String key
+    ) {
+
+        String value =
+                dotenv.get(key);
+
+        if (value == null || value.isBlank()) {
+
+            throw new IllegalStateException(
+                    "Required environment variable '" +
+                            key +
+                            "' is missing."
+            );
+        }
+
+        return value.trim();
+    }
+
+    // ============================================================
+    // ENV INTEGER
+    // ============================================================
+
+    private static int getInt(
+            Dotenv dotenv,
+            String key,
+            int defaultValue
+    ) {
+
+        String value =
+                dotenv.get(key);
+
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+
+        try {
+
+            return Integer.parseInt(
+                    value.trim()
+            );
+
+        } catch (NumberFormatException e) {
+
+            throw new IllegalArgumentException(
+                    "Environment variable '" +
+                            key +
+                            "' must be an integer. " +
+                            "Value: " +
+                            value
+            );
+        }
+    }
+
+    // ============================================================
+    // ENV BOOLEAN
+    // ============================================================
+
+    private static boolean getBoolean(
+            Dotenv dotenv,
+            String key,
+            boolean defaultValue
+    ) {
+
+        String value =
+                dotenv.get(key);
+
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+
+        return Boolean.parseBoolean(
+                value.trim()
+        );
     }
 }

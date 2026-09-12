@@ -1,21 +1,24 @@
 package utils;
 
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-
-@Retention(RUNTIME)
-@Target({METHOD, TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Target({
+        ElementType.TYPE,
+        ElementType.METHOD
+})
 public @interface ResetPolicy {
+
     Mode value() default Mode.INHERIT;
 
     enum Mode {
-        INHERIT,     // use suite default (from XML or BaseTest default)
-        NO_RESET,    // keep app + data
-        RESET_DATA,  // clear app data only
-        FAST_RESET,  // clear app data quickly (Appium pm clear, no reinstall)
-        FULL_RESET   // uninstall + reinstall (slowest)
+        NO_RESET,
+        FAST_RESET,
+        RESET_DATA,
+        FULL_RESET,
+        INHERIT
     }
 }
