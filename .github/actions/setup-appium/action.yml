@@ -55,12 +55,36 @@ runs:
         Write-Host "ANDROID_HOME = $androidHome"
 
         "ANDROID_HOME=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Append
-
         "ANDROID_SDK_ROOT=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Append
 
         "$androidHome\platform-tools" | Out-File -FilePath $env:GITHUB_PATH -Append
         "$androidHome\emulator" | Out-File -FilePath $env:GITHUB_PATH -Append
         "$androidHome\cmdline-tools\latest\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+
+    # ---------------------------------------------------------
+    # CACHE ANDROID SDK
+    # ---------------------------------------------------------
+    - name: Cache Android SDK Components
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.ANDROID_HOME }}/system-images
+          ${{ env.ANDROID_HOME }}/platforms
+        key: ${{ runner.os }}-android-sdk-35-x86_64
+
+
+    # ---------------------------------------------------------
+    # CACHE APPIUM & NPM GLOBALS
+    # ---------------------------------------------------------
+    - name: Cache Appium and Global NPM
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.appium
+          ~\AppData\Roaming\npm
+          ~\AppData\Roaming\npm-cache
+        key: ${{ runner.os }}-appium-globals
 
 
     # ---------------------------------------------------------
@@ -81,7 +105,8 @@ runs:
         & $sdkmanager --licenses | Out-Null
 
         Write-Host "Installing required Android packages..."
-
+        
+        # sdkmanager is smart enough to skip downloading if the cached folders exist
         & $sdkmanager `
           "platform-tools" `
           "emulator" `
@@ -96,12 +121,20 @@ runs:
       shell: powershell
       run: |
         Write-Host "Installing Appium..."
-
+        # npm install handles cached modules automatically
         npm install -g appium
 
-        Write-Host "Installing UiAutomator2 driver..."
-
-        appium driver install uiautomator2
+        Write-Host "Checking for UiAutomator2 driver..."
+        
+        # Check if driver is already installed from cache to prevent Appium error
+        $installedDrivers = appium driver list --installed
+        
+        if ($installedDrivers -match "uiautomator2") {
+            Write-Host "UiAutomator2 is already installed. Skipping driver installation."
+        } else {
+            Write-Host "Installing UiAutomator2 driver..."
+            appium driver install uiautomator2
+        }
 
         Write-Host "Appium version:"
         appium --version
@@ -124,20 +157,14 @@ runs:
 
         Write-Host "AVD name: $avdName"
 
-        $existingAvd = avdmanager list avd |
-          Select-String "Name:\s+$avdName"
+        $existingAvd = avdmanager list avd | Select-String "Name:\s+$avdName"
 
         if (-not $existingAvd) {
-
             Write-Host "Creating emulator: $avdName"
-
             cmd /c "echo no | avdmanager create avd -n $avdName -k `"system-images;android-35;google_apis;x86_64`" -d pixel_6"
-
         }
         else {
-
             Write-Host "AVD already exists."
-
         }
 
         Write-Host "Available AVDs:"
@@ -150,7 +177,6 @@ runs:
     - name: Start Android emulator
       shell: powershell
       run: |
-
         $avdName = "${env:DEVICE_NAME}"
 
         if (-not $avdName -or $avdName -eq "Android") {
@@ -162,120 +188,82 @@ runs:
         Write-Host "Starting emulator: $avdName"
         Write-Host "Headless: $headless"
 
-
         if ($headless -eq "true") {
-
             Write-Host "Starting emulator in HEADLESS mode..."
-
             Start-Process `
               -FilePath "emulator" `
               -ArgumentList "@$avdName -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect" `
               -RedirectStandardOutput "$env:RUNNER_TEMP\emulator.log" `
               -RedirectStandardError "$env:RUNNER_TEMP\emulator-error.log"
-
         }
         else {
-
             Write-Host "Starting emulator in HEADED mode..."
-
             Start-Process `
               -FilePath "emulator" `
               -ArgumentList "@$avdName -no-audio -no-boot-anim -gpu swiftshader_indirect" `
               -RedirectStandardOutput "$env:RUNNER_TEMP\emulator.log" `
               -RedirectStandardError "$env:RUNNER_TEMP\emulator-error.log"
-
         }
-
 
         # -----------------------------------------------------
         # WAIT FOR ADB
         # -----------------------------------------------------
-
         Write-Host "Waiting for ADB..."
-
         adb wait-for-device
-
 
         # -----------------------------------------------------
         # WAIT FOR ANDROID BOOT
         # -----------------------------------------------------
-
         Write-Host "Waiting for Android boot..."
-
         $bootCompleted = $false
 
         for ($i = 0; $i -lt 60; $i++) {
-
             $boot = adb shell getprop sys.boot_completed 2>$null
-
             Write-Host "Boot status: $boot"
 
             if ($boot.Trim() -eq "1") {
-
                 $bootCompleted = $true
                 break
-
             }
-
             Start-Sleep -Seconds 5
-
         }
-
 
         # -----------------------------------------------------
         # BOOT FAILURE
         # -----------------------------------------------------
-
         if (-not $bootCompleted) {
-
             Write-Host "Emulator failed to boot."
-
             Write-Host ""
             Write-Host "========== EMULATOR OUTPUT =========="
-
             if (Test-Path "$env:RUNNER_TEMP\emulator.log") {
                 Get-Content "$env:RUNNER_TEMP\emulator.log"
             }
-
             Write-Host ""
             Write-Host "========== EMULATOR ERROR =========="
-
             if (Test-Path "$env:RUNNER_TEMP\emulator-error.log") {
                 Get-Content "$env:RUNNER_TEMP\emulator-error.log"
             }
-
             exit 1
-
         }
-
 
         # -----------------------------------------------------
         # DEVICE READY
         # -----------------------------------------------------
-
         Write-Host ""
         Write-Host "Android emulator booted successfully."
-
         Write-Host ""
         Write-Host "Connected Android devices:"
-
         adb devices
-
 
         # -----------------------------------------------------
         # DISABLE ANDROID ANIMATIONS
         # -----------------------------------------------------
-
         if ($env:DISABLE_WINDOW_ANIMATION -eq "true") {
-
             Write-Host "Disabling Android animations..."
-
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
-
         }
-
 
         Write-Host ""
         Write-Host "Android emulator is ready."
