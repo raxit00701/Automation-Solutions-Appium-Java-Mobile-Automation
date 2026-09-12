@@ -232,64 +232,106 @@ runs:
         Write-Host "AVD: $avdName"
         Write-Host "HEADLESS: $env:HEADLESS"
 
-        # Force software rendering (-accel off) and bind port explicitly.
-        # NOTE: no acceleration is available on GitHub-hosted Windows
-        # runners (no nested virtualization), so first boot is slow.
-        $arguments = @(
-            "-avd", $avdName,
-            "-port", "5554",
-            "-no-snapshot",
-            "-no-audio",
-            "-no-boot-anim",
-            "-camera-back", "none",
-            "-camera-front", "none",
-            "-gpu", "swiftshader_indirect",
-            "-accel", "off",
-            "-cores", "2",
-            "-memory", "2048",
-            "-verbose"
-        )
+        function Start-Emulator {
+            param(
+                [string[]]$ExtraArgs,
+                [string]$AttemptLabel
+            )
 
-        if ($env:HEADLESS -eq "true") {
-            Write-Host "Starting emulator in HEADLESS mode..."
-            $arguments += "-no-window"
-        } else {
-            Write-Host "Starting emulator in HEADED mode..."
+            $arguments = @(
+                "-avd", $avdName,
+                "-port", "5554",
+                "-no-snapshot",
+                "-no-audio",
+                "-no-boot-anim",
+                "-camera-back", "none",
+                "-camera-front", "none",
+                "-cores", "2",
+                "-memory", "2048",
+                "-verbose"
+            ) + $ExtraArgs
+
+            if ($env:HEADLESS -eq "true") {
+                $arguments += "-no-window"
+            }
+
+            Write-Host ""
+            Write-Host "[$AttemptLabel] Command: $emulatorExe $($arguments -join ' ')"
+            Write-Host ""
+
+            Push-Location $emulatorDir
+            $proc = Start-Process `
+                -FilePath $emulatorExe `
+                -ArgumentList $arguments `
+                -RedirectStandardOutput $logFile `
+                -RedirectStandardError $errFile `
+                -PassThru `
+                -WindowStyle Hidden
+            Pop-Location
+
+            Write-Host "[$AttemptLabel] Emulator process started. PID: $($proc.Id)"
+
+            # Poll for early death over 60s instead of a single sleep-then-check.
+            # A QEMU init failure can take longer than 10s to actually unwind
+            # and exit, so a one-shot check at 10s can miss it.
+            $crashed = $false
+            for ($i = 0; $i -lt 30; $i++) {
+                Start-Sleep -Seconds 2
+                if ($proc.HasExited) {
+                    $crashed = $true
+                    break
+                }
+            }
+
+            return @{ Process = $proc; Crashed = $crashed }
         }
 
-        Write-Host ""
-        Write-Host "Command: $emulatorExe $($arguments -join ' ')"
-        Write-Host ""
+        # Attempt 1: preferred flags (software GPU, explicit no-accel).
+        $result = Start-Emulator -AttemptLabel "attempt 1" -ExtraArgs @(
+            "-gpu", "swiftshader_indirect",
+            "-accel", "off"
+        )
 
-        Push-Location $emulatorDir
+        if ($result.Crashed) {
+            Write-Host ""
+            Write-Host "[attempt 1] Emulator died within 60s (Exit Code $($result.Process.ExitCode)). Logs:"
+            Write-Host "--- EMULATOR STANDARD OUTPUT ---"
+            if (Test-Path $logFile) { Get-Content $logFile } else { Write-Host "(empty/not found)" }
+            Write-Host "--- EMULATOR ERROR LOG ---"
+            if (Test-Path $errFile) { Get-Content $errFile } else { Write-Host "(empty/not found)" }
 
-        $process = Start-Process `
-            -FilePath $emulatorExe `
-            -ArgumentList $arguments `
-            -RedirectStandardOutput $logFile `
-            -RedirectStandardError $errFile `
-            -PassThru `
-            -WindowStyle Hidden
+            Write-Host ""
+            Write-Host "Retrying with a more conservative, maximally-compatible flag set (-gpu guest, -no-accel)..."
 
-        Pop-Location
+            $result = Start-Emulator -AttemptLabel "attempt 2 (fallback)" -ExtraArgs @(
+                "-gpu", "guest",
+                "-no-accel"
+            )
+        }
 
+        if ($result.Crashed) {
+            Write-Error "Emulator process died on both attempts (final Exit Code $($result.Process.ExitCode))."
+            Write-Host ""
+            Write-Host "--- EMULATOR STANDARD OUTPUT (final attempt) ---"
+            if (Test-Path $logFile) { Get-Content $logFile } else { Write-Host "(log file not found: $logFile)" }
+            Write-Host ""
+            Write-Host "--- EMULATOR ERROR LOG (final attempt) ---"
+            if (Test-Path $errFile) { Get-Content $errFile } else { Write-Host "(log file not found: $errFile)" }
+            Write-Host ""
+            Write-Host "--- Common causes ---"
+            Write-Host "1. Hyper-V / Windows Hypervisor Platform enabled on the runner, conflicting with QEMU."
+            Write-Host "2. Corrupt or incomplete AVD - try deleting and recreating it without cache."
+            Write-Host "3. Insufficient disk space on the runner for the system image / userdata."
+            exit 1
+        }
+
+        $process = $result.Process
         "EMULATOR_LOG=$logFile" | Out-File -FilePath $env:GITHUB_ENV -Append
         "EMULATOR_ERR=$errFile" | Out-File -FilePath $env:GITHUB_ENV -Append
         "EMULATOR_PID=$($process.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-        Write-Host "Emulator process started."
-        Write-Host "PID: $($process.Id)"
-
-        Start-Sleep -Seconds 10
-
-        if ($process.HasExited) {
-            Write-Error "Emulator process crashed immediately with Exit Code $($process.ExitCode)!"
-            Write-Host ""
-            Write-Host "--- EMULATOR CRASH LOG ---"
-            if (Test-Path $errFile) { Get-Content $errFile }
-            exit 1
-        }
-
+        Write-Host ""
+        Write-Host "Emulator survived initial 60s window. PID: $($process.Id)"
         Write-Host ""
         Write-Host "ADB devices after emulator startup:"
         adb devices
