@@ -36,6 +36,7 @@ runs:
       shell: powershell
       run: |
         $androidHome = "C:\Android\android-sdk"
+
         Write-Host "ANDROID_HOME = $androidHome"
 
         if (-not (Test-Path $androidHome)) {
@@ -67,7 +68,6 @@ runs:
     - name: Install Android SDK components
       shell: powershell
       run: |
-        # FIX: Prevent Java from writing to stderr and crashing PowerShell
         $env:JAVA_TOOL_OPTIONS = "" 
 
         $sdkmanager = "C:\Android\android-sdk\cmdline-tools\latest\bin\sdkmanager.bat"
@@ -99,7 +99,6 @@ runs:
     - name: Verify Android tools
       shell: powershell
       run: |
-        # FIX: Prevent Java from writing to stderr and crashing PowerShell
         $env:JAVA_TOOL_OPTIONS = ""
 
         Write-Host ""
@@ -107,14 +106,11 @@ runs:
         Write-Host "           ANDROID TOOL VERIFICATION"
         Write-Host "================================================"
         Write-Host ""
-
         Write-Host "ADB:"
         adb version
-
         Write-Host ""
         Write-Host "Emulator:"
         emulator -version
-
         Write-Host ""
         Write-Host "SDK Manager:"
         sdkmanager --version
@@ -162,7 +158,6 @@ runs:
     - name: Create Android emulator
       shell: powershell
       run: |
-        # FIX: Prevent Java from writing to stderr and crashing PowerShell
         $env:JAVA_TOOL_OPTIONS = "" 
 
         $avdName = "CI_Android"
@@ -173,7 +168,6 @@ runs:
         Write-Host "          CREATING ANDROID EMULATOR"
         Write-Host "================================================"
         Write-Host ""
-
         Write-Host "AVD name: $avdName"
         Write-Host "System image: $package"
 
@@ -211,7 +205,11 @@ runs:
         HEADLESS: ${{ inputs.headless }}
       run: |
         $avdName = "CI_Android"
-        $emulatorExe = "C:\Android\android-sdk\emulator\emulator.exe"
+        $emulatorDir = "C:\Android\android-sdk\emulator"
+        $emulatorExe = "$emulatorDir\emulator.exe"
+        
+        $logFile = "$env:RUNNER_TEMP\emulator.log"
+        $errFile = "$env:RUNNER_TEMP\emulator-error.log"
 
         Write-Host ""
         Write-Host "================================================"
@@ -223,46 +221,67 @@ runs:
             Write-Error "emulator.exe not found: $emulatorExe"
             exit 1
         }
+        
+        Write-Host "Starting ADB server first to bind port..."
+        adb start-server
 
         Write-Host "AVD: $avdName"
         Write-Host "HEADLESS: $env:HEADLESS"
 
+        # Limit CPU and RAM to prevent immediate runner crash
         $arguments = @(
             "-avd", $avdName,
             "-no-snapshot",
             "-no-audio",
             "-no-boot-anim",
-            "-gpu", "swiftshader_indirect"
+            "-gpu", "swiftshader_indirect",
+            "-cores", "2",
+            "-memory", "2048"
         )
 
         if ($env:HEADLESS -eq "true") {
             Write-Host "Starting emulator in HEADLESS mode..."
             $arguments += "-no-window"
-        }
-        else {
+        } else {
             Write-Host "Starting emulator in HEADED mode..."
         }
 
         Write-Host ""
-        Write-Host "Command:"
-        Write-Host "$emulatorExe $($arguments -join ' ')"
+        Write-Host "Command: $emulatorExe $($arguments -join ' ')"
         Write-Host ""
+        
+        # Run emulator from its actual directory
+        Push-Location $emulatorDir
 
         $process = Start-Process `
             -FilePath $emulatorExe `
             -ArgumentList $arguments `
+            -RedirectStandardOutput $logFile `
+            -RedirectStandardError $errFile `
             -PassThru `
             -WindowStyle Hidden
+            
+        Pop-Location
+        
+        # Save log paths for the next step to read if it fails
+        "EMULATOR_LOG=$logFile" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "EMULATOR_ERR=$errFile" | Out-File -FilePath $env:GITHUB_ENV -Append
 
         Write-Host "Emulator process started."
         Write-Host "PID: $($process.Id)"
 
-        # Give emulator process time to register with ADB
         Start-Sleep -Seconds 10
+        
+        if ($process.HasExited) {
+            Write-Error "Emulator process crashed immediately with Exit Code $($process.ExitCode)!"
+            Write-Host ""
+            Write-Host "--- EMULATOR CRASH LOG ---"
+            if (Test-Path $errFile) { Get-Content $errFile }
+            exit 1
+        }
 
         Write-Host ""
         Write-Host "ADB devices after emulator startup:"
-        adb start-server
         adb devices
 
     # ============================================================
@@ -285,29 +304,34 @@ runs:
         for ($i = 0; $i -lt 60; $i++) {
             $devices = adb devices
 
-            Write-Host ""
-            Write-Host "ADB devices:"
-            $devices
-
             if ($devices -match "$udid\s+device") {
                 Write-Host ""
                 Write-Host "Android emulator detected."
                 $deviceReady = $true
                 break
             }
-
-            Write-Host "Emulator not ready. Attempt $($i + 1)/60"
+            if ($devices -match "$udid\s+offline") {
+                Write-Host "Emulator is offline, waiting for it to come online..."
+            } else {
+                Write-Host "Emulator not ready. Attempt $($i + 1)/60"
+            }
             Start-Sleep -Seconds 2
         }
 
         if (-not $deviceReady) {
             Write-Error "Android emulator '$udid' was not detected."
+            
+            Write-Host ""
+            Write-Host "--- EMULATOR ERROR LOG ---"
+            if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR }
+            
+            Write-Host ""
+            Write-Host "--- EMULATOR STANDARD OUTPUT ---"
+            if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG }
+            
             Write-Host ""
             Write-Host "Final ADB devices:"
             adb devices
-            Write-Host ""
-            Write-Host "Running emulator processes:"
-            Get-Process emulator -ErrorAction SilentlyContinue
             exit 1
         }
 
