@@ -199,7 +199,7 @@ jobs:
           Write-Host "       INSTALLING APPLICATION"
           Write-Host "======================================"
 
-          $apkPath = Join-Path $env:GITHUB_WORKSPACE "src\main\resources\test.apk"
+          $apkPath = Join-Path $env:GITHUB_WORKSPACE "src/test/resources/test.apk"
           Write-Host "APK path: $apkPath"
 
           if (-not (Test-Path $apkPath)) {
