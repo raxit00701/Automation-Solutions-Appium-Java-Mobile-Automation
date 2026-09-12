@@ -39,7 +39,7 @@ build/
 
 ### Allure Results ###
 allure-results/
-allure-report/
+/allure-report/
 
 ### Environment Files ###
 env/.env.prod
