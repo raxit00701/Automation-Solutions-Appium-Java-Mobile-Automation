@@ -1,3 +1,4 @@
+```yaml
 name: Appium Mobile Automation
 
 on:
@@ -26,16 +27,17 @@ on:
     inputs:
 
       environment:
-        description: Test environment
+        description: Select test environment
         required: true
         type: choice
         default: QA
         options:
           - QA
-          - UAT
+          - STAGING
+          - PROD
 
       headless:
-        description: Run emulator headless
+        description: Run Android emulator headless
         required: true
         type: choice
         default: 'true'
@@ -45,7 +47,7 @@ on:
 
 
 # ===========================================================
-# JOB
+# JOBS
 # ===========================================================
 
 jobs:
@@ -58,36 +60,95 @@ jobs:
 
     # --------------------------------------------------------
     # GITHUB ENVIRONMENT
+    #
+    # This connects the job to:
+    # QA / STAGING / PROD
     # --------------------------------------------------------
     environment:
       name: ${{ inputs.environment || 'QA' }}
 
     # --------------------------------------------------------
     # ENVIRONMENT VARIABLES
+    #
+    # These are loaded from the selected GitHub Environment.
     # --------------------------------------------------------
     env:
 
-      # Android
-      ANDROID_DEVICE_NAME: ${{ vars.ANDROID_DEVICE_NAME }}
-      ANDROID_UDID: ${{ vars.ANDROID_UDID }}
-      ANDROID_VERSION: ${{ vars.ANDROID_VERSION }}
+      # ------------------------------------------------------
+      # APPLICATION
+      # ------------------------------------------------------
 
-      # Application
+      ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
       APP_PACKAGE: ${{ vars.APP_PACKAGE }}
+
       APP_ACTIVITY: ${{ vars.APP_ACTIVITY }}
 
-      # Appium
-      APPIUM_HOST: ${{ vars.APPIUM_HOST }}
-      APPIUM_PORT: ${{ vars.APPIUM_PORT }}
+      APP_WAIT_ACTIVITY: ${{ vars.APP_WAIT_ACTIVITY }}
 
-      # Appium system ports
-      SYSTEM_PORT: ${{ vars.SYSTEM_PORT }}
-      CHROME_PORT: ${{ vars.CHROME_PORT }}
 
-      # Execution
+      # ------------------------------------------------------
+      # APPIUM CAPABILITIES
+      # ------------------------------------------------------
+
+      PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
+
+      AUTOMATION_NAME: ${{ vars.AUTOMATION_NAME }}
+
+      DEVICE_NAME: ${{ vars.DEVICE_NAME }}
+
+
+      # ------------------------------------------------------
+      # ADB
+      # ------------------------------------------------------
+
+      ADB_PATH: ${{ vars.ADB_PATH }}
+
+      ADB_EXEC_TIMEOUT: ${{ vars.ADB_EXEC_TIMEOUT }}
+
+
+      # ------------------------------------------------------
+      # CHROMEDRIVER
+      # ------------------------------------------------------
+
+      CHROMEDRIVER_EXECUTABLE: ${{ vars.CHROMEDRIVER_EXECUTABLE }}
+
+
+      # ------------------------------------------------------
+      # APPIUM TIMEOUTS
+      # ------------------------------------------------------
+
+      NEW_COMMAND_TIMEOUT: ${{ vars.NEW_COMMAND_TIMEOUT }}
+
+      APP_WAIT_FOR_QUIESCENCE: ${{ vars.APP_WAIT_FOR_QUIESCENCE }}
+
+      WAIT_FOR_IDLE_TIMEOUT: ${{ vars.WAIT_FOR_IDLE_TIMEOUT }}
+
+
+      # ------------------------------------------------------
+      # ANDROID SETTINGS
+      # ------------------------------------------------------
+
+      DISABLE_WINDOW_ANIMATION: ${{ vars.DISABLE_WINDOW_ANIMATION }}
+
+      AUTO_GRANT_PERMISSIONS: ${{ vars.AUTO_GRANT_PERMISSIONS }}
+
+      UNICODE_KEYBOARD: ${{ vars.UNICODE_KEYBOARD }}
+
+      RESET_KEYBOARD: ${{ vars.RESET_KEYBOARD }}
+
+
+      # ------------------------------------------------------
+      # EXECUTION MODE
+      # ------------------------------------------------------
+
       HEADLESS: ${{ inputs.headless || 'true' }}
 
-      # Java
+
+      # ------------------------------------------------------
+      # JAVA
+      # ------------------------------------------------------
+
       JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
 
 
@@ -102,7 +163,31 @@ jobs:
 
 
       # ======================================================
-      # SETUP
+      # DISPLAY CONFIGURATION
+      # ======================================================
+
+      - name: Display test configuration
+        shell: powershell
+        run: |
+          Write-Host "=============================================="
+          Write-Host "       APPIUM MOBILE AUTOMATION"
+          Write-Host "=============================================="
+
+          Write-Host "GitHub Environment : ${{ inputs.environment || 'QA' }}"
+          Write-Host "Application Env    : $env:ENVIRONMENT"
+          Write-Host "App Package        : $env:APP_PACKAGE"
+          Write-Host "App Activity       : $env:APP_ACTIVITY"
+          Write-Host "Platform           : $env:PLATFORM_NAME"
+          Write-Host "Automation         : $env:AUTOMATION_NAME"
+          Write-Host "Device             : $env:DEVICE_NAME"
+          Write-Host "ADB                : $env:ADB_PATH"
+          Write-Host "Headless           : $env:HEADLESS"
+
+          Write-Host "=============================================="
+
+
+      # ======================================================
+      # SETUP APPIUM
       # ======================================================
 
       - name: Setup Appium environment
@@ -119,10 +204,6 @@ jobs:
         uses: ./.github/actions/run-tests
         with:
           test-dir: src/test/java/tests
-          udid: ${{ env.ANDROID_UDID }}
-          server-port: ${{ env.APPIUM_PORT }}
-          system-port: ${{ env.SYSTEM_PORT }}
-          chrome-port: ${{ env.CHROME_PORT }}
 
 
       # ======================================================
@@ -132,3 +213,4 @@ jobs:
       - name: Generate Allure report and upload artifacts
         if: always()
         uses: ./.github/actions/allure-report
+```
