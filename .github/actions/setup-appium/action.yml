@@ -271,11 +271,12 @@ runs:
 
             Write-Host "[$AttemptLabel] Emulator process started. PID: $($proc.Id)"
 
-            # Poll for early death over 60s instead of a single sleep-then-check.
-            # A QEMU init failure can take longer than 10s to actually unwind
-            # and exit, so a one-shot check at 10s can miss it.
+            # Poll for early death over 120s instead of a shorter window.
+            # Observed failure mode: the process can register with adb
+            # (visible as "offline") and still die shortly after - a 60s
+            # window was not long enough to catch that reliably.
             $crashed = $false
-            for ($i = 0; $i -lt 30; $i++) {
+            for ($i = 0; $i -lt 60; $i++) {
                 Start-Sleep -Seconds 2
                 if ($proc.HasExited) {
                     $crashed = $true
@@ -286,10 +287,17 @@ runs:
             return @{ Process = $proc; Crashed = $crashed }
         }
 
-        # Attempt 1: preferred flags (software GPU, explicit no-accel).
-        $result = Start-Emulator -AttemptLabel "attempt 1" -ExtraArgs @(
+        # Attempt 1: hardware-accelerated via WHPX. GitHub-hosted Windows
+        # runners expose Windows Hypervisor Platform (WHPX), which the
+        # emulator can detect and use - this is the standard fast/stable
+        # path (confirmed by "WHPX ... is installed and usable" in logs).
+        # Forcing -accel off makes the emulator fall back to pure software
+        # CPU emulation (TCG), which is far slower and prone to hanging or
+        # dying under CI resource constraints - avoid that unless WHPX
+        # genuinely isn't available.
+        $result = Start-Emulator -AttemptLabel "attempt 1 (WHPX accel)" -ExtraArgs @(
             "-gpu", "swiftshader_indirect",
-            "-accel", "off"
+            "-accel", "on"
         )
 
         if ($result.Crashed) {
