@@ -228,13 +228,17 @@ runs:
         Write-Host "AVD: $avdName"
         Write-Host "HEADLESS: $env:HEADLESS"
 
-        # Limit CPU and RAM to prevent immediate runner crash
+        # Force software rendering (-accel off) and bind port explicitly
         $arguments = @(
             "-avd", $avdName,
+            "-port", "5554",
             "-no-snapshot",
             "-no-audio",
             "-no-boot-anim",
+            "-camera-back", "none",
+            "-camera-front", "none",
             "-gpu", "swiftshader_indirect",
+            "-accel", "off",
             "-cores", "2",
             "-memory", "2048"
         )
@@ -250,7 +254,6 @@ runs:
         Write-Host "Command: $emulatorExe $($arguments -join ' ')"
         Write-Host ""
         
-        # Run emulator from its actual directory
         Push-Location $emulatorDir
 
         $process = Start-Process `
@@ -263,7 +266,6 @@ runs:
             
         Pop-Location
         
-        # Save log paths for the next step to read if it fails
         "EMULATOR_LOG=$logFile" | Out-File -FilePath $env:GITHUB_ENV -Append
         "EMULATOR_ERR=$errFile" | Out-File -FilePath $env:GITHUB_ENV -Append
 
@@ -291,26 +293,30 @@ runs:
       shell: powershell
       run: |
         $udid = "emulator-5554"
+        $alt_udid = "127.0.0.1:5554"
 
         Write-Host ""
         Write-Host "================================================"
         Write-Host "          WAITING FOR ANDROID EMULATOR"
         Write-Host "================================================"
         Write-Host ""
-        Write-Host "Waiting for: $udid"
+        Write-Host "Waiting for: $udid or $alt_udid"
 
         $deviceReady = $false
 
         for ($i = 0; $i -lt 60; $i++) {
+            # Kickstart the connection if ADB is failing to see it automatically
+            adb connect $alt_udid | Out-Null
+            
             $devices = adb devices
 
-            if ($devices -match "$udid\s+device") {
+            if ($devices -match "$udid\s+device" -or $devices -match "$alt_udid\s+device") {
                 Write-Host ""
-                Write-Host "Android emulator detected."
+                Write-Host "Android emulator detected and online."
                 $deviceReady = $true
                 break
             }
-            if ($devices -match "$udid\s+offline") {
+            if ($devices -match "$udid\s+offline" -or $devices -match "$alt_udid\s+offline") {
                 Write-Host "Emulator is offline, waiting for it to come online..."
             } else {
                 Write-Host "Emulator not ready. Attempt $($i + 1)/60"
@@ -319,7 +325,7 @@ runs:
         }
 
         if (-not $deviceReady) {
-            Write-Error "Android emulator '$udid' was not detected."
+            Write-Error "Android emulator was not detected."
             
             Write-Host ""
             Write-Host "--- EMULATOR ERROR LOG ---"
@@ -341,23 +347,27 @@ runs:
     - name: Wait for Android boot
       shell: powershell
       run: |
-        $udid = "emulator-5554"
+        # Use whichever ID successfully connected
+        $devices = adb devices
+        $udid = if ($devices -match "127.0.0.1:5554\s+device") { "127.0.0.1:5554" } else { "emulator-5554" }
 
         Write-Host ""
         Write-Host "================================================"
         Write-Host "           WAITING FOR ANDROID BOOT"
         Write-Host "================================================"
         Write-Host ""
+        Write-Host "Using UDID: $udid"
 
-        for ($i = 0; $i -lt 90; $i++) {
+        # Increased to 150 attempts (5 minutes) because software rendering is slow
+        for ($i = 0; $i -lt 150; $i++) {
             $boot = adb -s $udid shell getprop sys.boot_completed 2>$null
             $boot = ($boot | Out-String).Trim()
 
-            Write-Host "Boot status: '$boot'"
+            Write-Host "Boot status (Attempt $($i + 1)/150): '$boot'"
 
             if ($boot -eq "1") {
                 Write-Host ""
-                Write-Host "Android boot completed."
+                Write-Host "Android boot completed successfully."
                 break
             }
             Start-Sleep -Seconds 2
@@ -380,10 +390,11 @@ runs:
     - name: Configure emulator
       shell: powershell
       run: |
-        $udid = "emulator-5554"
+        $devices = adb devices
+        $udid = if ($devices -match "127.0.0.1:5554\s+device") { "127.0.0.1:5554" } else { "emulator-5554" }
 
         if ($env:DISABLE_WINDOW_ANIMATION -eq "true") {
-            Write-Host "Disabling Android animations..."
+            Write-Host "Disabling Android animations on $udid..."
             adb -s $udid shell settings put global window_animation_scale 0
             adb -s $udid shell settings put global transition_animation_scale 0
             adb -s $udid shell settings put global animator_duration_scale 0
