@@ -1,0 +1,134 @@
+name: Appium Mobile Automation
+
+on:
+
+  # -----------------------------------------------------------
+  # RUN ON PUSH
+  # -----------------------------------------------------------
+  push:
+    branches:
+      - main
+      - develop
+
+  # -----------------------------------------------------------
+  # RUN ON PULL REQUEST
+  # -----------------------------------------------------------
+  pull_request:
+    branches:
+      - main
+      - develop
+
+  # -----------------------------------------------------------
+  # MANUAL RUN
+  # -----------------------------------------------------------
+  workflow_dispatch:
+
+    inputs:
+
+      environment:
+        description: Test environment
+        required: true
+        type: choice
+        default: QA
+        options:
+          - QA
+          - UAT
+
+      headless:
+        description: Run emulator headless
+        required: true
+        type: choice
+        default: 'true'
+        options:
+          - 'true'
+          - 'false'
+
+
+# ===========================================================
+# JOB
+# ===========================================================
+
+jobs:
+
+  appium-tests:
+
+    name: Appium Android Tests
+
+    runs-on: windows-latest
+
+    # --------------------------------------------------------
+    # GITHUB ENVIRONMENT
+    # --------------------------------------------------------
+    environment:
+      name: ${{ inputs.environment || 'QA' }}
+
+    # --------------------------------------------------------
+    # ENVIRONMENT VARIABLES
+    # --------------------------------------------------------
+    env:
+
+      # Android
+      ANDROID_DEVICE_NAME: ${{ vars.ANDROID_DEVICE_NAME }}
+      ANDROID_UDID: ${{ vars.ANDROID_UDID }}
+      ANDROID_VERSION: ${{ vars.ANDROID_VERSION }}
+
+      # Application
+      APP_PACKAGE: ${{ vars.APP_PACKAGE }}
+      APP_ACTIVITY: ${{ vars.APP_ACTIVITY }}
+
+      # Appium
+      APPIUM_HOST: ${{ vars.APPIUM_HOST }}
+      APPIUM_PORT: ${{ vars.APPIUM_PORT }}
+
+      # Appium system ports
+      SYSTEM_PORT: ${{ vars.SYSTEM_PORT }}
+      CHROME_PORT: ${{ vars.CHROME_PORT }}
+
+      # Execution
+      HEADLESS: ${{ inputs.headless || 'true' }}
+
+      # Java
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
+
+
+    steps:
+
+      # ======================================================
+      # CHECKOUT
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # ======================================================
+      # SETUP
+      # ======================================================
+
+      - name: Setup Appium environment
+        uses: ./.github/actions/setup-appium
+        with:
+          headless: ${{ env.HEADLESS }}
+
+
+      # ======================================================
+      # RUN TESTS
+      # ======================================================
+
+      - name: Run Appium tests
+        uses: ./.github/actions/run-tests
+        with:
+          test-dir: src/test/java/tests
+          udid: ${{ env.ANDROID_UDID }}
+          server-port: ${{ env.APPIUM_PORT }}
+          system-port: ${{ env.SYSTEM_PORT }}
+          chrome-port: ${{ env.CHROME_PORT }}
+
+
+      # ======================================================
+      # ALLURE + ARTIFACTS
+      # ======================================================
+
+      - name: Generate Allure report and upload artifacts
+        if: always()
+        uses: ./.github/actions/allure-report
