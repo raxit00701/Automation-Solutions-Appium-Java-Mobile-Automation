@@ -2,25 +2,25 @@ name: Appium Mobile Automation
 
 on:
 
-  # -----------------------------------------------------------
+  # ===========================================================
   # RUN ON PUSH
-  # -----------------------------------------------------------
+  # ===========================================================
   push:
     branches:
       - main
       - develop
 
-  # -----------------------------------------------------------
+  # ===========================================================
   # RUN ON PULL REQUEST
-  # -----------------------------------------------------------
+  # ===========================================================
   pull_request:
     branches:
       - main
       - develop
 
-  # -----------------------------------------------------------
+  # ===========================================================
   # MANUAL RUN
-  # -----------------------------------------------------------
+  # ===========================================================
   workflow_dispatch:
 
     inputs:
@@ -57,20 +57,28 @@ jobs:
 
     runs-on: windows-latest
 
-    # --------------------------------------------------------
+    # ========================================================
     # GITHUB ENVIRONMENT
     #
-    # This connects the job to:
-    # QA / STAGING / PROD
-    # --------------------------------------------------------
+    # Manual:
+    #   QA      -> QA
+    #   STAGING -> STAGING
+    #   PROD    -> PROD
+    #
+    # Push/PR:
+    #   Defaults to QA
+    # ========================================================
+
     environment:
       name: ${{ inputs.environment || 'QA' }}
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # ENVIRONMENT VARIABLES
     #
-    # These are loaded from the selected GitHub Environment.
-    # --------------------------------------------------------
+    # These come from the selected GitHub Environment.
+    # ========================================================
+
     env:
 
       # ------------------------------------------------------
@@ -87,7 +95,7 @@ jobs:
 
 
       # ------------------------------------------------------
-      # APPIUM CAPABILITIES
+      # PLATFORM / APPIUM
       # ------------------------------------------------------
 
       PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
@@ -168,21 +176,62 @@ jobs:
       - name: Display test configuration
         shell: powershell
         run: |
-          Write-Host "=============================================="
+
+          Write-Host ""
+          Write-Host "================================================"
           Write-Host "       APPIUM MOBILE AUTOMATION"
-          Write-Host "=============================================="
+          Write-Host "================================================"
+
+          Write-Host ""
+          Write-Host "Execution Configuration"
+          Write-Host "------------------------------------------------"
 
           Write-Host "GitHub Environment : ${{ inputs.environment || 'QA' }}"
           Write-Host "Application Env    : $env:ENVIRONMENT"
-          Write-Host "App Package        : $env:APP_PACKAGE"
-          Write-Host "App Activity       : $env:APP_ACTIVITY"
+          Write-Host "Headless           : $env:HEADLESS"
+
+          Write-Host ""
+          Write-Host "Application"
+          Write-Host "------------------------------------------------"
+
+          Write-Host "Package            : $env:APP_PACKAGE"
+          Write-Host "Activity           : $env:APP_ACTIVITY"
+          Write-Host "Wait Activity      : $env:APP_WAIT_ACTIVITY"
+
+          Write-Host ""
+          Write-Host "Appium"
+          Write-Host "------------------------------------------------"
+
           Write-Host "Platform           : $env:PLATFORM_NAME"
           Write-Host "Automation         : $env:AUTOMATION_NAME"
           Write-Host "Device             : $env:DEVICE_NAME"
-          Write-Host "ADB                : $env:ADB_PATH"
-          Write-Host "Headless           : $env:HEADLESS"
 
-          Write-Host "=============================================="
+          Write-Host ""
+          Write-Host "ADB"
+          Write-Host "------------------------------------------------"
+
+          Write-Host "ADB Path           : $env:ADB_PATH"
+          Write-Host "ADB Timeout        : $env:ADB_EXEC_TIMEOUT"
+
+          Write-Host ""
+          Write-Host "Timeouts"
+          Write-Host "------------------------------------------------"
+
+          Write-Host "New Command        : $env:NEW_COMMAND_TIMEOUT"
+          Write-Host "Wait Idle          : $env:WAIT_FOR_IDLE_TIMEOUT"
+
+          Write-Host ""
+          Write-Host "Android Settings"
+          Write-Host "------------------------------------------------"
+
+          Write-Host "Window Animation   : $env:DISABLE_WINDOW_ANIMATION"
+          Write-Host "Auto Grant         : $env:AUTO_GRANT_PERMISSIONS"
+          Write-Host "Unicode Keyboard   : $env:UNICODE_KEYBOARD"
+          Write-Host "Reset Keyboard     : $env:RESET_KEYBOARD"
+
+          Write-Host ""
+          Write-Host "================================================"
+          Write-Host ""
 
 
       # ======================================================
@@ -212,4 +261,3 @@ jobs:
       - name: Generate Allure report and upload artifacts
         if: always()
         uses: ./.github/actions/allure-report
-```
