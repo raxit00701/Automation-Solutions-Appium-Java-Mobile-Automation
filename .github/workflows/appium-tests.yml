@@ -59,14 +59,6 @@ jobs:
 
     # ========================================================
     # GITHUB ENVIRONMENT
-    #
-    # Manual:
-    #   QA      -> QA
-    #   STAGING -> STAGING
-    #   PROD    -> PROD
-    #
-    # Push/PR:
-    #   Defaults to QA
     # ========================================================
 
     environment:
@@ -74,87 +66,23 @@ jobs:
 
 
     # ========================================================
-    # ENVIRONMENT VARIABLES
+    # GLOBAL ENVIRONMENT
     #
-    # These come from the selected GitHub Environment.
+    # Each GitHub Environment contains ONE variable:
+    #
+    # QA      -> variable named QA
+    # STAGING -> variable named STAGING
+    # PROD    -> variable named PROD
+    #
+    # The selected variable contains the complete
+    # KEY=VALUE configuration.
     # ========================================================
 
     env:
 
-      # ------------------------------------------------------
-      # APPLICATION
-      # ------------------------------------------------------
-
-      ENVIRONMENT: ${{ vars.ENVIRONMENT }}
-
-      APP_PACKAGE: ${{ vars.APP_PACKAGE }}
-
-      APP_ACTIVITY: ${{ vars.APP_ACTIVITY }}
-
-      APP_WAIT_ACTIVITY: ${{ vars.APP_WAIT_ACTIVITY }}
-
-
-      # ------------------------------------------------------
-      # PLATFORM / APPIUM
-      # ------------------------------------------------------
-
-      PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
-
-      AUTOMATION_NAME: ${{ vars.AUTOMATION_NAME }}
-
-      DEVICE_NAME: ${{ vars.DEVICE_NAME }}
-
-
-      # ------------------------------------------------------
-      # ADB
-      # ------------------------------------------------------
-
-      ADB_PATH: ${{ vars.ADB_PATH }}
-
-      ADB_EXEC_TIMEOUT: ${{ vars.ADB_EXEC_TIMEOUT }}
-
-
-      # ------------------------------------------------------
-      # CHROMEDRIVER
-      # ------------------------------------------------------
-
-      CHROMEDRIVER_EXECUTABLE: ${{ vars.CHROMEDRIVER_EXECUTABLE }}
-
-
-      # ------------------------------------------------------
-      # APPIUM TIMEOUTS
-      # ------------------------------------------------------
-
-      NEW_COMMAND_TIMEOUT: ${{ vars.NEW_COMMAND_TIMEOUT }}
-
-      APP_WAIT_FOR_QUIESCENCE: ${{ vars.APP_WAIT_FOR_QUIESCENCE }}
-
-      WAIT_FOR_IDLE_TIMEOUT: ${{ vars.WAIT_FOR_IDLE_TIMEOUT }}
-
-
-      # ------------------------------------------------------
-      # ANDROID SETTINGS
-      # ------------------------------------------------------
-
-      DISABLE_WINDOW_ANIMATION: ${{ vars.DISABLE_WINDOW_ANIMATION }}
-
-      AUTO_GRANT_PERMISSIONS: ${{ vars.AUTO_GRANT_PERMISSIONS }}
-
-      UNICODE_KEYBOARD: ${{ vars.UNICODE_KEYBOARD }}
-
-      RESET_KEYBOARD: ${{ vars.RESET_KEYBOARD }}
-
-
-      # ------------------------------------------------------
-      # EXECUTION MODE
-      # ------------------------------------------------------
+      APPIUM_ENV_CONFIG: ${{ vars[inputs.environment || 'QA'] }}
 
       HEADLESS: ${{ inputs.headless || 'true' }}
-
-
-      # ------------------------------------------------------
-      # JAVA
-      # ------------------------------------------------------
 
       JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
 
@@ -167,6 +95,140 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
+
+      # ======================================================
+      # LOAD ENVIRONMENT CONFIGURATION
+      # ======================================================
+
+      - name: Load environment configuration
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "================================================"
+          Write-Host "       LOADING APPIUM ENVIRONMENT"
+          Write-Host "================================================"
+
+          $config = $env:APPIUM_ENV_CONFIG
+
+          if ([string]::IsNullOrWhiteSpace($config)) {
+
+              Write-Error "Environment configuration is empty."
+
+              Write-Host ""
+              Write-Host "Expected GitHub Environment variables:"
+              Write-Host "  QA      -> multiline QA configuration"
+              Write-Host "  STAGING -> multiline STAGING configuration"
+              Write-Host "  PROD    -> multiline PROD configuration"
+
+              exit 1
+          }
+
+          Write-Host "Configuration received successfully."
+          Write-Host ""
+
+          # --------------------------------------------------
+          # Parse each KEY=VALUE line
+          # --------------------------------------------------
+
+          foreach ($line in ($config -split "`r?`n")) {
+
+              $line = $line.Trim()
+
+              # Skip empty lines
+              if ([string]::IsNullOrWhiteSpace($line)) {
+                  continue
+              }
+
+              # Skip comments
+              if ($line.StartsWith("#")) {
+                  continue
+              }
+
+              # Split only on the FIRST '='
+              $parts = $line -split '=', 2
+
+              if ($parts.Count -ne 2) {
+
+                  Write-Warning "Skipping invalid configuration line: $line"
+
+                  continue
+              }
+
+              $key = $parts[0].Trim()
+              $value = $parts[1].Trim()
+
+              if ([string]::IsNullOrWhiteSpace($key)) {
+                  continue
+              }
+
+              # Write variable for all following GitHub Actions steps
+              "$key=$value" | Out-File `
+                  -FilePath $env:GITHUB_ENV `
+                  -Append `
+                  -Encoding utf8
+
+              Write-Host "Loaded: $key"
+          }
+
+          Write-Host ""
+          Write-Host "Environment configuration loaded successfully."
+          Write-Host "================================================"
+          Write-Host ""
+
+
+      # ======================================================
+      # VALIDATE CONFIGURATION
+      # ======================================================
+
+      - name: Validate environment configuration
+        shell: powershell
+        run: |
+
+          $requiredVariables = @(
+              "ENVIRONMENT",
+              "APP_PACKAGE",
+              "APP_ACTIVITY",
+              "APP_WAIT_ACTIVITY",
+              "PLATFORM_NAME",
+              "AUTOMATION_NAME",
+              "DEVICE_NAME",
+              "ADB_PATH",
+              "ADB_EXEC_TIMEOUT",
+              "CHROMEDRIVER_EXECUTABLE",
+              "NEW_COMMAND_TIMEOUT",
+              "APP_WAIT_FOR_QUIESCENCE",
+              "WAIT_FOR_IDLE_TIMEOUT",
+              "DISABLE_WINDOW_ANIMATION",
+              "AUTO_GRANT_PERMISSIONS",
+              "UNICODE_KEYBOARD",
+              "RESET_KEYBOARD"
+          )
+
+          $missing = @()
+
+          foreach ($variable in $requiredVariables) {
+
+              $value = [Environment]::GetEnvironmentVariable($variable)
+
+              if ([string]::IsNullOrWhiteSpace($value)) {
+                  $missing += $variable
+              }
+          }
+
+          if ($missing.Count -gt 0) {
+
+              Write-Host ""
+              Write-Host "Missing environment variables:"
+              $missing | ForEach-Object {
+                  Write-Host "  - $_"
+              }
+
+              exit 1
+          }
+
+          Write-Host "All required environment variables are loaded."
 
 
       # ======================================================
@@ -212,6 +274,12 @@ jobs:
 
           Write-Host "ADB Path           : $env:ADB_PATH"
           Write-Host "ADB Timeout        : $env:ADB_EXEC_TIMEOUT"
+
+          Write-Host ""
+          Write-Host "ChromeDriver"
+          Write-Host "------------------------------------------------"
+
+          Write-Host "Executable         : $env:CHROMEDRIVER_EXECUTABLE"
 
           Write-Host ""
           Write-Host "Timeouts"
