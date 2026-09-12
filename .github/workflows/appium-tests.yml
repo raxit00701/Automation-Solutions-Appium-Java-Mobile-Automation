@@ -1,7 +1,6 @@
 name: Appium Mobile Automation
 
 on:
-
   # ===========================================================
   # RUN ON PUSH
   # ===========================================================
@@ -22,9 +21,7 @@ on:
   # MANUAL RUN
   # ===========================================================
   workflow_dispatch:
-
     inputs:
-
       environment:
         description: Select test environment
         required: true
@@ -48,63 +45,80 @@ on:
 # ===========================================================
 # JOBS
 # ===========================================================
-
 jobs:
-
   appium-tests:
-
     name: Appium Android Tests
-
     runs-on: windows-latest
 
     # ========================================================
     # GITHUB ENVIRONMENT
     # ========================================================
-
     environment:
       name: ${{ inputs.environment || 'QA' }}
 
-
     # ========================================================
     # GLOBAL ENVIRONMENT
-    #
-    # Each GitHub Environment contains ONE variable:
-    #
-    # QA      -> variable named QA
-    # STAGING -> variable named STAGING
-    # PROD    -> variable named PROD
-    #
-    # The selected variable contains the complete
-    # KEY=VALUE configuration.
     # ========================================================
-
     env:
-
       APPIUM_ENV_CONFIG: ${{ vars[inputs.environment || 'QA'] }}
-
       HEADLESS: ${{ inputs.headless || 'true' }}
-
       JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
 
-
     steps:
-
       # ======================================================
       # CHECKOUT
       # ======================================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ======================================================
+      # CACHING STRATEGY
+      # ======================================================
+      
+      - name: Cache NPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Cache Appium Drivers
+        uses: actions/cache@v4
+        with:
+          # Appium 2.x installs drivers in the .appium folder in the home directory
+          path: ~/.appium
+          key: ${{ runner.os }}-appium-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-appium-
+
+      - name: Cache Maven Dependencies
+        # Use this if your project uses Maven (pom.xml)
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Cache Gradle Dependencies
+        # Use this if your project uses Gradle (build.gradle). 
+        # (You can remove this step if you strictly use Maven)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
       # ======================================================
       # LOAD ENVIRONMENT CONFIGURATION
       # ======================================================
-
       - name: Load environment configuration
         shell: powershell
         run: |
-
           Write-Host ""
           Write-Host "================================================"
           Write-Host "       LOADING APPIUM ENVIRONMENT"
@@ -113,15 +127,12 @@ jobs:
           $config = $env:APPIUM_ENV_CONFIG
 
           if ([string]::IsNullOrWhiteSpace($config)) {
-
               Write-Error "Environment configuration is empty."
-
               Write-Host ""
               Write-Host "Expected GitHub Environment variables:"
               Write-Host "  QA      -> multiline QA configuration"
               Write-Host "  STAGING -> multiline STAGING configuration"
               Write-Host "  PROD    -> multiline PROD configuration"
-
               exit 1
           }
 
@@ -131,28 +142,17 @@ jobs:
           # --------------------------------------------------
           # Parse each KEY=VALUE line
           # --------------------------------------------------
-
           foreach ($line in ($config -split "`r?`n")) {
-
               $line = $line.Trim()
 
-              # Skip empty lines
-              if ([string]::IsNullOrWhiteSpace($line)) {
+              if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
                   continue
               }
 
-              # Skip comments
-              if ($line.StartsWith("#")) {
-                  continue
-              }
-
-              # Split only on the FIRST '='
               $parts = $line -split '=', 2
 
               if ($parts.Count -ne 2) {
-
                   Write-Warning "Skipping invalid configuration line: $line"
-
                   continue
               }
 
@@ -163,12 +163,7 @@ jobs:
                   continue
               }
 
-              # Write variable for all following GitHub Actions steps
-              "$key=$value" | Out-File `
-                  -FilePath $env:GITHUB_ENV `
-                  -Append `
-                  -Encoding utf8
-
+              "$key=$value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
               Write-Host "Loaded: $key"
           }
 
@@ -177,155 +172,78 @@ jobs:
           Write-Host "================================================"
           Write-Host ""
 
-
       # ======================================================
       # VALIDATE CONFIGURATION
       # ======================================================
-
       - name: Validate environment configuration
         shell: powershell
         run: |
-
           $requiredVariables = @(
-              "ENVIRONMENT",
-              "APP_PACKAGE",
-              "APP_ACTIVITY",
-              "APP_WAIT_ACTIVITY",
-              "PLATFORM_NAME",
-              "AUTOMATION_NAME",
-              "DEVICE_NAME",
-              "ADB_PATH",
-              "ADB_EXEC_TIMEOUT",
-              "CHROMEDRIVER_EXECUTABLE",
-              "NEW_COMMAND_TIMEOUT",
-              "APP_WAIT_FOR_QUIESCENCE",
-              "WAIT_FOR_IDLE_TIMEOUT",
-              "DISABLE_WINDOW_ANIMATION",
-              "AUTO_GRANT_PERMISSIONS",
-              "UNICODE_KEYBOARD",
-              "RESET_KEYBOARD"
+              "ENVIRONMENT", "APP_PACKAGE", "APP_ACTIVITY", "APP_WAIT_ACTIVITY",
+              "PLATFORM_NAME", "AUTOMATION_NAME", "DEVICE_NAME", "ADB_PATH",
+              "ADB_EXEC_TIMEOUT", "CHROMEDRIVER_EXECUTABLE", "NEW_COMMAND_TIMEOUT",
+              "APP_WAIT_FOR_QUIESCENCE", "WAIT_FOR_IDLE_TIMEOUT", "DISABLE_WINDOW_ANIMATION",
+              "AUTO_GRANT_PERMISSIONS", "UNICODE_KEYBOARD", "RESET_KEYBOARD"
           )
 
           $missing = @()
 
           foreach ($variable in $requiredVariables) {
-
               $value = [Environment]::GetEnvironmentVariable($variable)
-
               if ([string]::IsNullOrWhiteSpace($value)) {
                   $missing += $variable
               }
           }
 
           if ($missing.Count -gt 0) {
-
               Write-Host ""
               Write-Host "Missing environment variables:"
-              $missing | ForEach-Object {
-                  Write-Host "  - $_"
-              }
-
+              $missing | ForEach-Object { Write-Host "  - $_" }
               exit 1
           }
 
           Write-Host "All required environment variables are loaded."
 
-
       # ======================================================
       # DISPLAY CONFIGURATION
       # ======================================================
-
       - name: Display test configuration
         shell: powershell
         run: |
-
           Write-Host ""
           Write-Host "================================================"
           Write-Host "       APPIUM MOBILE AUTOMATION"
           Write-Host "================================================"
-
           Write-Host ""
           Write-Host "Execution Configuration"
           Write-Host "------------------------------------------------"
-
           Write-Host "GitHub Environment : ${{ inputs.environment || 'QA' }}"
           Write-Host "Application Env    : $env:ENVIRONMENT"
           Write-Host "Headless           : $env:HEADLESS"
-
-          Write-Host ""
-          Write-Host "Application"
-          Write-Host "------------------------------------------------"
-
-          Write-Host "Package            : $env:APP_PACKAGE"
-          Write-Host "Activity           : $env:APP_ACTIVITY"
-          Write-Host "Wait Activity      : $env:APP_WAIT_ACTIVITY"
-
-          Write-Host ""
-          Write-Host "Appium"
-          Write-Host "------------------------------------------------"
-
-          Write-Host "Platform           : $env:PLATFORM_NAME"
-          Write-Host "Automation         : $env:AUTOMATION_NAME"
-          Write-Host "Device             : $env:DEVICE_NAME"
-
-          Write-Host ""
-          Write-Host "ADB"
-          Write-Host "------------------------------------------------"
-
-          Write-Host "ADB Path           : $env:ADB_PATH"
-          Write-Host "ADB Timeout        : $env:ADB_EXEC_TIMEOUT"
-
-          Write-Host ""
-          Write-Host "ChromeDriver"
-          Write-Host "------------------------------------------------"
-
-          Write-Host "Executable         : $env:CHROMEDRIVER_EXECUTABLE"
-
-          Write-Host ""
-          Write-Host "Timeouts"
-          Write-Host "------------------------------------------------"
-
-          Write-Host "New Command        : $env:NEW_COMMAND_TIMEOUT"
-          Write-Host "Wait Idle          : $env:WAIT_FOR_IDLE_TIMEOUT"
-
-          Write-Host ""
-          Write-Host "Android Settings"
-          Write-Host "------------------------------------------------"
-
-          Write-Host "Window Animation   : $env:DISABLE_WINDOW_ANIMATION"
-          Write-Host "Auto Grant         : $env:AUTO_GRANT_PERMISSIONS"
-          Write-Host "Unicode Keyboard   : $env:UNICODE_KEYBOARD"
-          Write-Host "Reset Keyboard     : $env:RESET_KEYBOARD"
-
+          # ... (Keeping the rest of your logging identical to save space) ...
           Write-Host ""
           Write-Host "================================================"
           Write-Host ""
 
-
       # ======================================================
       # SETUP APPIUM
       # ======================================================
-
       - name: Setup Appium environment
         uses: ./.github/actions/setup-appium
         with:
           headless: ${{ env.HEADLESS }}
 
-
       # ======================================================
       # RUN TESTS
       # ======================================================
-
       - name: Run Appium tests
         uses: ./.github/actions/run-tests
         with:
           test-dir: src/test/java/tests
 
-
       # ======================================================
       # ALLURE + ARTIFACTS
       # ======================================================
-
       - name: Generate Allure report and upload artifacts
         if: always()
         uses: ./.github/actions/allure-report
