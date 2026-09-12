@@ -3,7 +3,6 @@ name: Run Appium Tests
 description: Run Appium TestNG tests using Maven
 
 inputs:
-
   test-dir:
     description: Test directory
     required: false
@@ -29,20 +28,27 @@ inputs:
     required: false
     default: '9515'
 
-
 runs:
   using: composite
 
   steps:
+    # =========================================================
+    # CACHE MAVEN DEPENDENCIES
+    # =========================================================
+    - name: Cache Maven Dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
 
     # =========================================================
     # FIND AND VALIDATE ANDROID DEVICE
     # =========================================================
-
     - name: Validate Android emulator
       shell: powershell
       run: |
-
         Write-Host ""
         Write-Host "======================================"
         Write-Host "      ANDROID DEVICE CHECK"
@@ -57,18 +63,14 @@ runs:
 
         $device = "${{ inputs.udid }}"
 
-        $deviceExists = adb devices |
-          Select-String "^$device\s+device$"
+        $deviceExists = adb devices | Select-String "^$device\s+device$"
 
         if (-not $deviceExists) {
-
             Write-Host ""
             Write-Host "ERROR: Android device '$device' is not available."
-
             Write-Host ""
             Write-Host "Available devices:"
             adb devices
-
             exit 1
         }
 
@@ -78,11 +80,9 @@ runs:
     # =========================================================
     # SHOW TEST ENVIRONMENT
     # =========================================================
-
     - name: Show test environment
       shell: powershell
       run: |
-
         Write-Host ""
         Write-Host "======================================"
         Write-Host "      APPIUM TEST ENVIRONMENT"
@@ -117,11 +117,9 @@ runs:
     # =========================================================
     # START APPIUM
     # =========================================================
-
     - name: Start Appium server
       shell: powershell
       run: |
-
         $port = "${{ inputs.server-port }}"
 
         if ([string]::IsNullOrWhiteSpace($port)) {
@@ -138,24 +136,13 @@ runs:
         # -----------------------------------------------------
         # Verify Appium installation
         # -----------------------------------------------------
-
         Write-Host "Appium version:"
         appium --version
-
         Write-Host ""
 
         # -----------------------------------------------------
-        # Start Appium through CMD.
-        #
-        # On Windows, the npm-installed 'appium' command can
-        # be a .cmd/.ps1 shim. Starting it directly through
-        # Start-Process can produce:
-        #
-        # %1 is not a valid Win32 application
-        #
-        # CMD correctly executes the npm command shim.
+        # Start Appium through CMD
         # -----------------------------------------------------
-
         $appiumLog = "$env:RUNNER_TEMP\appium.log"
         $appiumErrorLog = "$env:RUNNER_TEMP\appium-error.log"
 
@@ -173,67 +160,49 @@ runs:
         # -----------------------------------------------------
         # Wait for Appium
         # -----------------------------------------------------
-
         Write-Host ""
         Write-Host "Waiting for Appium server..."
 
         $ready = $false
 
         for ($i = 0; $i -lt 30; $i++) {
-
             try {
-
                 $response = Invoke-WebRequest `
                     -Uri "http://127.0.0.1:$port/wd/hub/status" `
                     -UseBasicParsing `
                     -TimeoutSec 2
 
                 if ($response.StatusCode -eq 200) {
-
                     $ready = $true
-
                     Write-Host ""
                     Write-Host "Appium responded successfully."
-
                     break
                 }
-
             }
             catch {
-
                 Write-Host "Appium not ready yet... attempt $($i + 1)/30"
             }
-
             Start-Sleep -Seconds 2
         }
 
         # -----------------------------------------------------
         # Fail if Appium did not start
         # -----------------------------------------------------
-
         if (-not $ready) {
-
             Write-Host ""
             Write-Host "======================================"
             Write-Host "       APPIUM FAILED TO START"
             Write-Host "======================================"
-
             Write-Host ""
             Write-Host "Appium output:"
             Write-Host "--------------------------------------"
-
-            if (Test-Path $appiumLog) {
-                Get-Content $appiumLog
-            }
-
+            if (Test-Path $appiumLog) { Get-Content $appiumLog }
+            
             Write-Host ""
             Write-Host "Appium error output:"
             Write-Host "--------------------------------------"
-
-            if (Test-Path $appiumErrorLog) {
-                Get-Content $appiumErrorLog
-            }
-
+            if (Test-Path $appiumErrorLog) { Get-Content $appiumErrorLog }
+            
             exit 1
         }
 
@@ -247,11 +216,9 @@ runs:
     # =========================================================
     # RUN MAVEN TESTS
     # =========================================================
-
     - name: Run TestNG tests
       shell: powershell
       run: |
-
         Write-Host ""
         Write-Host "======================================"
         Write-Host "         RUNNING APPIUM TESTS"
@@ -284,10 +251,8 @@ runs:
         Write-Host "Maven exit code: $exitCode"
 
         if ($exitCode -ne 0) {
-
             Write-Host ""
             Write-Host "Tests failed."
-
             exit $exitCode
         }
 
@@ -297,37 +262,23 @@ runs:
     # =========================================================
     # SHOW TEST OUTPUT
     # =========================================================
-
     - name: Show generated test directories
       if: always()
       shell: powershell
       run: |
-
         Write-Host ""
         Write-Host "======================================"
         Write-Host "       GENERATED TEST FILES"
         Write-Host "======================================"
 
-        if (Test-Path "target") {
-            Write-Host "✓ target directory exists."
-        }
-        else {
-            Write-Host "✗ target directory not found."
-        }
+        if (Test-Path "target") { Write-Host "✓ target directory exists." }
+        else { Write-Host "✗ target directory not found." }
 
-        if (Test-Path "allure-results") {
-            Write-Host "✓ allure-results directory exists."
-        }
-        else {
-            Write-Host "✗ allure-results directory not found."
-        }
+        if (Test-Path "allure-results") { Write-Host "✓ allure-results directory exists." }
+        else { Write-Host "✗ allure-results directory not found." }
 
-        if (Test-Path "test-output") {
-            Write-Host "✓ test-output directory exists."
-        }
+        if (Test-Path "test-output") { Write-Host "✓ test-output directory exists." }
 
-        if (Test-Path "screenshots") {
-            Write-Host "✓ screenshots directory exists."
-        }
+        if (Test-Path "screenshots") { Write-Host "✓ screenshots directory exists." }
 
         Write-Host ""
