@@ -284,6 +284,11 @@ runs:
                 }
             }
 
+            if ($crashed) {
+                # Ensure the exit code is actually populated before we read it.
+                $proc.WaitForExit(5000) | Out-Null
+            }
+
             return @{ Process = $proc; Crashed = $crashed }
         }
 
@@ -302,11 +307,13 @@ runs:
 
         if ($result.Crashed) {
             Write-Host ""
-            Write-Host "[attempt 1] Emulator died within 60s (Exit Code $($result.Process.ExitCode)). Logs:"
-            Write-Host "--- EMULATOR STANDARD OUTPUT ---"
+            Write-Host "[attempt 1] Emulator died within 120s (Exit Code $($result.Process.ExitCode))."
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (attempt 1)"
             if (Test-Path $logFile) { Get-Content $logFile } else { Write-Host "(empty/not found)" }
-            Write-Host "--- EMULATOR ERROR LOG ---"
+            Write-Host "::endgroup::"
+            Write-Host "::group::EMULATOR ERROR LOG (attempt 1)"
             if (Test-Path $errFile) { Get-Content $errFile } else { Write-Host "(empty/not found)" }
+            Write-Host "::endgroup::"
 
             Write-Host ""
             Write-Host "Retrying with a more conservative, maximally-compatible flag set (-gpu guest, -no-accel)..."
@@ -318,13 +325,35 @@ runs:
         }
 
         if ($result.Crashed) {
-            Write-Error "Emulator process died on both attempts (final Exit Code $($result.Process.ExitCode))."
-            Write-Host ""
-            Write-Host "--- EMULATOR STANDARD OUTPUT (final attempt) ---"
-            if (Test-Path $logFile) { Get-Content $logFile } else { Write-Host "(log file not found: $logFile)" }
-            Write-Host ""
-            Write-Host "--- EMULATOR ERROR LOG (final attempt) ---"
-            if (Test-Path $errFile) { Get-Content $errFile } else { Write-Host "(log file not found: $errFile)" }
+            $exitCode = $result.Process.ExitCode
+            Write-Error "Emulator process died on both attempts (final Exit Code $exitCode)."
+
+            $errContent = if (Test-Path $errFile) { Get-Content $errFile -Raw } else { "(not found)" }
+            $logContent = if (Test-Path $logFile) { Get-Content $logFile -Raw } else { "(not found)" }
+
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (final attempt, full)"
+            Write-Host $logContent
+            Write-Host "::endgroup::"
+            Write-Host "::group::EMULATOR ERROR LOG (final attempt, full)"
+            Write-Host $errContent
+            Write-Host "::endgroup::"
+
+            if ($env:GITHUB_STEP_SUMMARY) {
+                "## Emulator failed to start on both attempts" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "Final exit code: $exitCode" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard error (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($errContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard output (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($logContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+
             Write-Host ""
             Write-Host "--- Common causes ---"
             Write-Host "1. Hyper-V / Windows Hypervisor Platform enabled on the runner, conflicting with QEMU."
@@ -375,12 +404,36 @@ runs:
                 $proc = Get-Process -Id $env:EMULATOR_PID -ErrorAction SilentlyContinue
                 if (-not $proc) {
                     Write-Error "Emulator process (PID $env:EMULATOR_PID) is no longer running."
-                    Write-Host ""
-                    Write-Host "--- EMULATOR ERROR LOG ---"
-                    if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR }
-                    Write-Host ""
-                    Write-Host "--- EMULATOR STANDARD OUTPUT ---"
-                    if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG }
+
+                    $errContent = if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR -Raw } else { "(not found: $env:EMULATOR_ERR)" }
+                    $logContent = if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG -Raw } else { "(not found: $env:EMULATOR_LOG)" }
+
+                    Write-Host "::group::EMULATOR ERROR LOG (full)"
+                    Write-Host $errContent
+                    Write-Host "::endgroup::"
+
+                    Write-Host "::group::EMULATOR STANDARD OUTPUT (full)"
+                    Write-Host $logContent
+                    Write-Host "::endgroup::"
+
+                    # Also write to the job summary so this is guaranteed
+                    # visible without expanding any collapsed log group.
+                    if ($env:GITHUB_STEP_SUMMARY) {
+                        "## Emulator crashed while waiting for it to come online" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "PID $env:EMULATOR_PID exited before adb reported it as `device`." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "### Standard error (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        ($errContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "### Standard output (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        ($logContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                    }
+
                     exit 1
                 }
             }
@@ -423,13 +476,15 @@ runs:
         if (-not $deviceReady) {
             Write-Error "Android emulator was not detected."
 
-            Write-Host ""
-            Write-Host "--- EMULATOR ERROR LOG ---"
-            if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR }
+            $errContent = if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR -Raw } else { "(not found)" }
+            $logContent = if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG -Raw } else { "(not found)" }
 
-            Write-Host ""
-            Write-Host "--- EMULATOR STANDARD OUTPUT ---"
-            if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG }
+            Write-Host "::group::EMULATOR ERROR LOG (full)"
+            Write-Host $errContent
+            Write-Host "::endgroup::"
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (full)"
+            Write-Host $logContent
+            Write-Host "::endgroup::"
 
             Write-Host ""
             Write-Host "Final ADB devices:"
@@ -440,6 +495,21 @@ runs:
             if ($env:EMULATOR_PID) {
                 Get-Process -Id $env:EMULATOR_PID -ErrorAction SilentlyContinue
             }
+
+            if ($env:GITHUB_STEP_SUMMARY) {
+                "## Android emulator never came online (timed out)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard error (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($errContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard output (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($logContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+
             exit 1
         }
 
