@@ -11,11 +11,9 @@ runs:
   using: composite
 
   steps:
-
     # ============================================================
     # JAVA
     # ============================================================
-
     - name: Setup Java 17
       uses: actions/setup-java@v4
       with:
@@ -23,41 +21,29 @@ runs:
         java-version: "17"
         cache: maven
 
-
     # ============================================================
     # NODE
     # ============================================================
-
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: "24"
 
-
     # ============================================================
     # ANDROID ENVIRONMENT
     # ============================================================
-
     - name: Configure Android environment
       shell: powershell
       run: |
         $androidHome = "C:\Android\android-sdk"
-
         Write-Host "ANDROID_HOME = $androidHome"
 
         if (-not (Test-Path $androidHome)) {
             New-Item -ItemType Directory -Force -Path $androidHome | Out-Null
         }
 
-        "ANDROID_HOME=$androidHome" | Out-File `
-          -FilePath $env:GITHUB_ENV `
-          -Append `
-          -Encoding utf8
-
-        "ANDROID_SDK_ROOT=$androidHome" | Out-File `
-          -FilePath $env:GITHUB_ENV `
-          -Append `
-          -Encoding utf8
+        "ANDROID_HOME=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "ANDROID_SDK_ROOT=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
         $env:ANDROID_HOME = $androidHome
         $env:ANDROID_SDK_ROOT = $androidHome
@@ -75,14 +61,14 @@ runs:
             }
         }
 
-
     # ============================================================
     # ANDROID SDK
     # ============================================================
-
     - name: Install Android SDK components
       shell: powershell
       run: |
+        # FIX: Prevent Java from writing to stderr and crashing PowerShell
+        $env:JAVA_TOOL_OPTIONS = "" 
 
         $sdkmanager = "C:\Android\android-sdk\cmdline-tools\latest\bin\sdkmanager.bat"
 
@@ -92,13 +78,9 @@ runs:
         }
 
         Write-Host "Accepting Android SDK licenses..."
-
-        & $sdkmanager --licenses | ForEach-Object {
-            "y"
-        }
+        & $sdkmanager --licenses | ForEach-Object { "y" }
 
         Write-Host "Installing Android SDK components..."
-
         & $sdkmanager `
           "platform-tools" `
           "emulator" `
@@ -111,14 +93,14 @@ runs:
             exit 1
         }
 
-
     # ============================================================
     # VERIFY ANDROID TOOLS
     # ============================================================
-
     - name: Verify Android tools
       shell: powershell
       run: |
+        # FIX: Prevent Java from writing to stderr and crashing PowerShell
+        $env:JAVA_TOOL_OPTIONS = ""
 
         Write-Host ""
         Write-Host "================================================"
@@ -136,20 +118,15 @@ runs:
         Write-Host ""
         Write-Host "SDK Manager:"
         sdkmanager --version
-
         Write-Host ""
-
 
     # ============================================================
     # APPIUM
     # ============================================================
-
     - name: Install Appium
       shell: powershell
       run: |
-
         Write-Host "Installing Appium..."
-
         npm install -g appium
 
         if ($LASTEXITCODE -ne 0) {
@@ -161,17 +138,13 @@ runs:
         Write-Host "Appium version:"
         appium --version
 
-
     # ============================================================
     # APPIUM UIAUTOMATOR2
     # ============================================================
-
     - name: Install UiAutomator2 driver
       shell: powershell
       run: |
-
         Write-Host "Installing UiAutomator2 driver..."
-
         appium driver install uiautomator2
 
         if ($LASTEXITCODE -ne 0) {
@@ -183,14 +156,14 @@ runs:
         Write-Host "Installed Appium drivers:"
         appium driver list --installed
 
-
     # ============================================================
     # CREATE AVD
     # ============================================================
-
     - name: Create Android emulator
       shell: powershell
       run: |
+        # FIX: Prevent Java from writing to stderr and crashing PowerShell
+        $env:JAVA_TOOL_OPTIONS = "" 
 
         $avdName = "CI_Android"
         $package = "system-images;android-35;google_apis;x86_64"
@@ -207,14 +180,10 @@ runs:
         $existingAvd = & avdmanager list avd 2>$null
 
         if ($existingAvd -match "Name:\s*$avdName") {
-
             Write-Host "AVD already exists."
-
         }
         else {
-
             Write-Host "Creating AVD..."
-
             $yes = "no"
 
             $yes | & avdmanager create avd `
@@ -233,17 +202,14 @@ runs:
         Write-Host "Available AVDs:"
         emulator -list-avds
 
-
     # ============================================================
     # START EMULATOR
     # ============================================================
-
     - name: Start Android emulator
       shell: powershell
       env:
         HEADLESS: ${{ inputs.headless }}
       run: |
-
         $avdName = "CI_Android"
         $emulatorExe = "C:\Android\android-sdk\emulator\emulator.exe"
 
@@ -270,16 +236,11 @@ runs:
         )
 
         if ($env:HEADLESS -eq "true") {
-
             Write-Host "Starting emulator in HEADLESS mode..."
-
             $arguments += "-no-window"
-
         }
         else {
-
             Write-Host "Starting emulator in HEADED mode..."
-
         }
 
         Write-Host ""
@@ -301,20 +262,15 @@ runs:
 
         Write-Host ""
         Write-Host "ADB devices after emulator startup:"
-
         adb start-server
-
         adb devices
-
 
     # ============================================================
     # WAIT FOR EMULATOR
     # ============================================================
-
     - name: Wait for Android emulator
       shell: powershell
       run: |
-
         $udid = "emulator-5554"
 
         Write-Host ""
@@ -322,13 +278,11 @@ runs:
         Write-Host "          WAITING FOR ANDROID EMULATOR"
         Write-Host "================================================"
         Write-Host ""
-
         Write-Host "Waiting for: $udid"
 
         $deviceReady = $false
 
         for ($i = 0; $i -lt 60; $i++) {
-
             $devices = adb devices
 
             Write-Host ""
@@ -336,43 +290,33 @@ runs:
             $devices
 
             if ($devices -match "$udid\s+device") {
-
                 Write-Host ""
                 Write-Host "Android emulator detected."
-
                 $deviceReady = $true
                 break
             }
 
             Write-Host "Emulator not ready. Attempt $($i + 1)/60"
-
             Start-Sleep -Seconds 2
         }
 
         if (-not $deviceReady) {
-
             Write-Error "Android emulator '$udid' was not detected."
-
             Write-Host ""
             Write-Host "Final ADB devices:"
             adb devices
-
             Write-Host ""
             Write-Host "Running emulator processes:"
             Get-Process emulator -ErrorAction SilentlyContinue
-
             exit 1
         }
-
 
     # ============================================================
     # WAIT FOR ANDROID BOOT
     # ============================================================
-
     - name: Wait for Android boot
       shell: powershell
       run: |
-
         $udid = "emulator-5554"
 
         Write-Host ""
@@ -382,20 +326,16 @@ runs:
         Write-Host ""
 
         for ($i = 0; $i -lt 90; $i++) {
-
             $boot = adb -s $udid shell getprop sys.boot_completed 2>$null
-
             $boot = ($boot | Out-String).Trim()
 
             Write-Host "Boot status: '$boot'"
 
             if ($boot -eq "1") {
-
                 Write-Host ""
                 Write-Host "Android boot completed."
                 break
             }
-
             Start-Sleep -Seconds 2
         }
 
@@ -403,31 +343,23 @@ runs:
         $boot = ($boot | Out-String).Trim()
 
         if ($boot -ne "1") {
-
             Write-Error "Android emulator did not finish booting."
-
             Write-Host ""
             Write-Host "ADB devices:"
             adb devices
-
             exit 1
         }
-
 
     # ============================================================
     # DISABLE ANIMATIONS
     # ============================================================
-
     - name: Configure emulator
       shell: powershell
       run: |
-
         $udid = "emulator-5554"
 
         if ($env:DISABLE_WINDOW_ANIMATION -eq "true") {
-
             Write-Host "Disabling Android animations..."
-
             adb -s $udid shell settings put global window_animation_scale 0
             adb -s $udid shell settings put global transition_animation_scale 0
             adb -s $udid shell settings put global animator_duration_scale 0
@@ -436,6 +368,5 @@ runs:
         Write-Host ""
         Write-Host "Final emulator state:"
         adb devices
-
         Write-Host ""
         Write-Host "Android emulator is READY."
