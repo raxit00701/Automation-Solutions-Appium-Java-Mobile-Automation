@@ -23,14 +23,15 @@ runs:
         java-version: '17'
         cache: maven
 
+
     # ---------------------------------------------------------
     # NODE
     # ---------------------------------------------------------
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
-        cache: npm
+        node-version: '24'
+
 
     # ---------------------------------------------------------
     # ANDROID ENVIRONMENT
@@ -61,6 +62,7 @@ runs:
         "$androidHome\emulator" | Out-File -FilePath $env:GITHUB_PATH -Append
         "$androidHome\cmdline-tools\latest\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
 
+
     # ---------------------------------------------------------
     # ANDROID SDK
     # ---------------------------------------------------------
@@ -86,6 +88,7 @@ runs:
           "platforms;android-35" `
           "system-images;android-35;google_apis;x86_64"
 
+
     # ---------------------------------------------------------
     # APPIUM
     # ---------------------------------------------------------
@@ -106,15 +109,16 @@ runs:
         Write-Host "Installed drivers:"
         appium driver list --installed
 
+
     # ---------------------------------------------------------
     # CREATE EMULATOR
     # ---------------------------------------------------------
     - name: Create Android emulator
       shell: powershell
       run: |
-        $avdName = "${env:ANDROID_DEVICE_NAME}"
+        $avdName = "${env:DEVICE_NAME}"
 
-        if (-not $avdName) {
+        if (-not $avdName -or $avdName -eq "Android") {
             $avdName = "CI_Android"
         }
 
@@ -129,7 +133,8 @@ runs:
 
             cmd /c "echo no | avdmanager create avd -n $avdName -k `"system-images;android-35;google_apis;x86_64`" -d pixel_6"
 
-        } else {
+        }
+        else {
 
             Write-Host "AVD already exists."
 
@@ -138,15 +143,17 @@ runs:
         Write-Host "Available AVDs:"
         emulator -list-avds
 
+
     # ---------------------------------------------------------
     # START EMULATOR
     # ---------------------------------------------------------
     - name: Start Android emulator
       shell: powershell
       run: |
-        $avdName = "${env:ANDROID_DEVICE_NAME}"
 
-        if (-not $avdName) {
+        $avdName = "${env:DEVICE_NAME}"
+
+        if (-not $avdName -or $avdName -eq "Android") {
             $avdName = "CI_Android"
         }
 
@@ -154,6 +161,7 @@ runs:
 
         Write-Host "Starting emulator: $avdName"
         Write-Host "Headless: $headless"
+
 
         if ($headless -eq "true") {
 
@@ -165,7 +173,8 @@ runs:
               -RedirectStandardOutput "$env:RUNNER_TEMP\emulator.log" `
               -RedirectStandardError "$env:RUNNER_TEMP\emulator-error.log"
 
-        } else {
+        }
+        else {
 
             Write-Host "Starting emulator in HEADED mode..."
 
@@ -174,11 +183,22 @@ runs:
               -ArgumentList "@$avdName -no-audio -no-boot-anim -gpu swiftshader_indirect" `
               -RedirectStandardOutput "$env:RUNNER_TEMP\emulator.log" `
               -RedirectStandardError "$env:RUNNER_TEMP\emulator-error.log"
+
         }
+
+
+        # -----------------------------------------------------
+        # WAIT FOR ADB
+        # -----------------------------------------------------
 
         Write-Host "Waiting for ADB..."
 
         adb wait-for-device
+
+
+        # -----------------------------------------------------
+        # WAIT FOR ANDROID BOOT
+        # -----------------------------------------------------
 
         Write-Host "Waiting for Android boot..."
 
@@ -191,38 +211,71 @@ runs:
             Write-Host "Boot status: $boot"
 
             if ($boot.Trim() -eq "1") {
+
                 $bootCompleted = $true
                 break
+
             }
 
             Start-Sleep -Seconds 5
+
         }
+
+
+        # -----------------------------------------------------
+        # BOOT FAILURE
+        # -----------------------------------------------------
 
         if (-not $bootCompleted) {
 
             Write-Host "Emulator failed to boot."
 
+            Write-Host ""
+            Write-Host "========== EMULATOR OUTPUT =========="
+
             if (Test-Path "$env:RUNNER_TEMP\emulator.log") {
                 Get-Content "$env:RUNNER_TEMP\emulator.log"
             }
+
+            Write-Host ""
+            Write-Host "========== EMULATOR ERROR =========="
 
             if (Test-Path "$env:RUNNER_TEMP\emulator-error.log") {
                 Get-Content "$env:RUNNER_TEMP\emulator-error.log"
             }
 
             exit 1
+
         }
 
+
+        # -----------------------------------------------------
+        # DEVICE READY
+        # -----------------------------------------------------
+
+        Write-Host ""
         Write-Host "Android emulator booted successfully."
+
+        Write-Host ""
+        Write-Host "Connected Android devices:"
 
         adb devices
 
+
         # -----------------------------------------------------
-        # SET COMMON CI DEVICE SETTINGS
+        # DISABLE ANDROID ANIMATIONS
         # -----------------------------------------------------
 
-        adb shell settings put global window_animation_scale 0
-        adb shell settings put global transition_animation_scale 0
-        adb shell settings put global animator_duration_scale 0
+        if ($env:DISABLE_WINDOW_ANIMATION -eq "true") {
 
+            Write-Host "Disabling Android animations..."
+
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+
+        }
+
+
+        Write-Host ""
         Write-Host "Android emulator is ready."
