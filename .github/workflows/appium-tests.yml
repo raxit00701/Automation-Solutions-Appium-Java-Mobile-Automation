@@ -6,12 +6,12 @@ on:
       environment:
         description: 'Environment to run the tests against'
         required: true
-        default: 'qa'
+        default: 'QA'
         type: choice
         options:
-          - qa
-          - staging
-          - prod
+          - QA
+          - STAGE
+          - PROD
       headless:
         description: 'Run Emulator in Headless mode'
         required: true
@@ -21,6 +21,7 @@ on:
 jobs:
   mobile-tests:
     runs-on: self-hosted # Requires your local Windows machine connected as a runner
+    environment: ${{ inputs.environment }} # <--- Binds the job to the selected GitHub Environment
     
     steps:
       - name: Checkout Code
