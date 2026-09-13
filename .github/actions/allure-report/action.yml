@@ -1,185 +1,23 @@
-name: Generate Allure Report
-
-description: Generate Allure report and upload test artifacts
+name: 'Allure Report and Artifacts'
+description: 'Generates Allure report and uploads pipeline artifacts'
 
 runs:
-  using: composite
-
+  using: "composite"
   steps:
+    - name: Generate Allure Report
+      shell: bash
+      run: mvn allure:report || echo "Report generation skipped or failed"
 
-    # ---------------------------------------------------------
-    # INSTALL ALLURE CLI
-    # ---------------------------------------------------------
-    - name: Install Allure CLI
-      shell: powershell
-      run: |
-        Write-Host "Installing Allure command line tool..."
-
-        npm install -g allure-commandline
-
-        Write-Host "Allure version:"
-        allure --version
-
-    # ---------------------------------------------------------
-    # RESTORE ALLURE HISTORY
-    # ---------------------------------------------------------
-    - name: Restore Allure history
-      uses: actions/cache@v4
-      with:
-        path: .allure-history
-        key: allure-history-${{ github.ref_name }}-${{ github.run_id }}
-        restore-keys: |
-          allure-history-${{ github.ref_name }}-
-          allure-history-
-
-    # ---------------------------------------------------------
-    # INJECT HISTORY
-    # ---------------------------------------------------------
-    - name: Inject Allure history
-      shell: powershell
-      run: |
-        if (Test-Path ".allure-history") {
-
-            Write-Host "Previous Allure history found."
-
-            if (-not (Test-Path "allure-results")) {
-                New-Item -ItemType Directory -Path "allure-results" | Out-Null
-            }
-
-            if (Test-Path ".allure-history") {
-
-                Copy-Item `
-                  ".allure-history\*" `
-                  "allure-results\" `
-                  -Recurse `
-                  -Force `
-                  -ErrorAction SilentlyContinue
-            }
-
-        } else {
-
-            Write-Host "No previous Allure history found."
-
-        }
-
-    # ---------------------------------------------------------
-    # GENERATE REPORT
-    # ---------------------------------------------------------
-    - name: Generate Allure report
-      if: always()
-      shell: powershell
-      run: |
-        if (Test-Path "allure-results") {
-
-            Write-Host "Generating Allure report..."
-
-            allure generate allure-results `
-              --clean `
-              -o allure-report
-
-            Write-Host "Allure report generated."
-
-        } else {
-
-            Write-Host "No allure-results directory found."
-
-        }
-
-    # ---------------------------------------------------------
-    # COPY HISTORY FOR NEXT RUN
-    # ---------------------------------------------------------
-    - name: Save Allure history
-      if: always()
-      shell: powershell
-      run: |
-        if (Test-Path "allure-report\history") {
-
-            Write-Host "Saving Allure history..."
-
-            if (Test-Path ".allure-history") {
-                Remove-Item ".allure-history" -Recurse -Force
-            }
-
-            New-Item `
-              -ItemType Directory `
-              -Path ".allure-history" `
-              -Force | Out-Null
-
-            Copy-Item `
-              "allure-report\history\*" `
-              ".allure-history\" `
-              -Recurse `
-              -Force
-
-            Write-Host "Allure history saved."
-
-        }
-
-    # ---------------------------------------------------------
-    # UPLOAD ALLURE RESULTS
-    # ---------------------------------------------------------
-    - name: Upload Allure results
-      if: always()
+    - name: Upload Allure Results
       uses: actions/upload-artifact@v4
       with:
-        name: allure-results-${{ github.run_number }}
-        path: allure-results
-        if-no-files-found: warn
+        name: allure-results
+        path: allure-results/
         retention-days: 14
 
-    # ---------------------------------------------------------
-    # UPLOAD ALLURE REPORT
-    # ---------------------------------------------------------
-    - name: Upload Allure report
-      if: always()
+    - name: Upload Allure HTML Report
       uses: actions/upload-artifact@v4
       with:
-        name: allure-report-${{ github.run_number }}
-        path: allure-report
-        if-no-files-found: warn
-        retention-days: 14
-
-    # ---------------------------------------------------------
-    # UPLOAD MAVEN REPORTS
-    # ---------------------------------------------------------
-    - name: Upload Maven test reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: maven-test-reports-${{ github.run_number }}
-        path: |
-          target/surefire-reports
-          target/test-classes
-          test-output
-        if-no-files-found: warn
-        retention-days: 14
-
-    # ---------------------------------------------------------
-    # UPLOAD SCREENSHOTS
-    # ---------------------------------------------------------
-    - name: Upload screenshots
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: screenshots-${{ github.run_number }}
-        path: |
-          screenshots
-          target/screenshots
-        if-no-files-found: warn
-        retention-days: 14
-
-    # ---------------------------------------------------------
-    # UPLOAD LOGS
-    # ---------------------------------------------------------
-    - name: Upload Appium and emulator logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: appium-logs-${{ github.run_number }}
-        path: |
-          ${{ runner.temp }}/appium.log
-          ${{ runner.temp }}/appium-error.log
-          ${{ runner.temp }}/emulator.log
-          ${{ runner.temp }}/emulator-error.log
-        if-no-files-found: warn
+        name: allure-html-report
+        path: allure-report/ # Matches the POM outputDirectory
         retention-days: 14
