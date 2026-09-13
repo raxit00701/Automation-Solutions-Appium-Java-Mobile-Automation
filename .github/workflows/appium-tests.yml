@@ -91,16 +91,30 @@ jobs:
           restore-keys: |
             appium-uiautomator2-${{ runner.os }}-${{ runner.arch }}-
 
+     
       - name: Ensure UiAutomator2
         shell: powershell
         run: |
-          $drivers = appium driver list 2>&1 | Out-String
-
-          if ($drivers -notmatch "uiautomator2") {
-            appium driver install uiautomator2
-          }
+          Write-Host "Checking Appium drivers..."
 
           appium driver list
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Appium driver list returned exit code $LASTEXITCODE."
+            Write-Host "Attempting to install UiAutomator2..."
+
+            appium driver install uiautomator2
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to install UiAutomator2 driver."
+              exit 1
+            }
+          }
+
+          Write-Host "Appium drivers:"
+          appium driver list
+
+
 
       - name: Prepare directories
         shell: powershell
