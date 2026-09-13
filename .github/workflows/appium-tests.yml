@@ -27,18 +27,6 @@ on:
           - headless
           - head
 
-  push:
-    branches:
-      - main
-
-  pull_request:
-    branches:
-      - main
-
-
-permissions:
-  contents: read
-
 
 jobs:
 
@@ -50,57 +38,53 @@ jobs:
       - self-hosted
       - windows
       - x64
-      
 
-    # -------------------------------------------------------
-    # GitHub Environment
-    # -------------------------------------------------------
-
-    environment: ${{ inputs.environment || 'QA' }}
+    environment: ${{ inputs.environment }}
 
     timeout-minutes: 60
 
     steps:
 
-      # -----------------------------------------------------
-      # Checkout
-      # -----------------------------------------------------
+      # ======================================================
+      # CHECKOUT
+      # ======================================================
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      # -----------------------------------------------------
-      # Show runner information
-      # -----------------------------------------------------
+      # ======================================================
+      # SHOW SELECTED ENVIRONMENT
+      # ======================================================
 
-      - name: Runner information
+      - name: Show selected environment
         shell: powershell
         run: |
+          Write-Host "Selected environment: ${{ inputs.environment }}"
+          Write-Host "Emulator mode: ${{ inputs.emulator_mode }}"
 
-          Write-Host "Runner OS: $env:RUNNER_OS"
-          Write-Host "Runner architecture: $env:RUNNER_ARCH"
-          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
-
-      # -----------------------------------------------------
-      # Setup Appium / Android
-      # -----------------------------------------------------
+      # ======================================================
+      # SETUP APPIUM
+      # ======================================================
 
       - name: Setup Appium
         uses: ./.github/actions/setup-appium
 
         with:
 
-          environment: ${{ inputs.environment || 'QA' }}
+          environment: ${{ inputs.environment }}
 
-          emulator-mode: ${{ inputs.emulator_mode || 'headless' }}
+          environment-config: |
+            ${{ vars.ENV_CONFIG }}
+
+          emulator-mode: ${{ inputs.emulator_mode }}
 
           avd-name: Pixel_API_35
 
           emulator-path: C:\Android\emulator\emulator.exe
 
-      # -----------------------------------------------------
-      # Run tests
-      # -----------------------------------------------------
+      # ======================================================
+      # RUN TESTS
+      # ======================================================
 
       - name: Run Appium tests
         uses: ./.github/actions/run-tests
@@ -111,9 +95,9 @@ jobs:
 
           test-directory: src/test/java/tests
 
-      # -----------------------------------------------------
-      # Allure
-      # -----------------------------------------------------
+      # ======================================================
+      # ALLURE
+      # ======================================================
 
       - name: Generate Allure report
         if: always()
