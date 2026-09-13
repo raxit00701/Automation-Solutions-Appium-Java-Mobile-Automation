@@ -144,7 +144,7 @@ jobs:
           Write-Host "UDID        : $env:ANDROID_SERIAL"
           Write-Host "Mode        : ${{ inputs.emulator_mode || 'headless' }}"
 
-      - name: Clean previous run
+            - name: Clean previous run
         shell: powershell
         continue-on-error: true
         run: |
@@ -163,7 +163,7 @@ jobs:
           Get-Process emulator -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
 
-          adb kill-server 2>$null
+          adb kill-server 2>&1 | Out-Null
 
           Start-Sleep -Seconds 2
 
@@ -178,34 +178,54 @@ jobs:
         run: |
           $mode = "${{ inputs.emulator_mode || 'headless' }}"
 
+          Write-Host "Starting AVD: $env:ANDROID_AVD"
+          Write-Host "Mode: $mode"
+
           if ($mode -eq "headless") {
-            Start-Process `
-              -FilePath $env:EMULATOR_EXECUTABLE `
-              -ArgumentList @(
-                "-avd",
-                $env:ANDROID_AVD,
-                "-no-window",
-                "-no-audio",
-                "-no-boot-anim",
-                "-gpu",
-                "swiftshader_indirect"
-              ) `
-              -RedirectStandardOutput "$PWD\logs\emulator.log" `
-              -RedirectStandardError "$PWD\logs\emulator-error.log"
+            $arguments = @(
+              "-avd",
+              $env:ANDROID_AVD,
+              "-no-window",
+              "-no-audio",
+              "-no-boot-anim",
+              "-gpu",
+              "swiftshader"
+            )
           }
           else {
-            Start-Process `
-              -FilePath $env:EMULATOR_EXECUTABLE `
-              -ArgumentList @(
-                "-avd",
-                $env:ANDROID_AVD,
-                "-no-boot-anim"
-              ) `
-              -RedirectStandardOutput "$PWD\logs\emulator.log" `
-              -RedirectStandardError "$PWD\logs\emulator-error.log"
+            $arguments = @(
+              "-avd",
+              $env:ANDROID_AVD,
+              "-no-boot-anim"
+            )
           }
 
-      
+          Start-Process `
+            -FilePath $env:EMULATOR_EXECUTABLE `
+            -ArgumentList $arguments `
+            -RedirectStandardOutput "$PWD\logs\emulator.log" `
+            -RedirectStandardError "$PWD\logs\emulator-error.log"
+
+          Start-Sleep -Seconds 10
+
+          $emulatorProcess = Get-Process emulator -ErrorAction SilentlyContinue
+
+          if ($null -eq $emulatorProcess) {
+            Write-Error "Emulator process failed to start."
+
+            if (Test-Path "logs\emulator.log") {
+              Get-Content "logs\emulator.log" -Tail 300
+            }
+
+            if (Test-Path "logs\emulator-error.log") {
+              Get-Content "logs\emulator-error.log" -Tail 300
+            }
+
+            exit 1
+          }
+
+          Write-Host "Emulator process started successfully."
+
       - name: Wait for emulator
         shell: powershell
         run: |
@@ -239,6 +259,10 @@ jobs:
 
             if (Test-Path "logs\emulator.log") {
               Get-Content "logs\emulator.log" -Tail 200
+            }
+
+            if (Test-Path "logs\emulator-error.log") {
+              Get-Content "logs\emulator-error.log" -Tail 200
             }
 
             exit 1
