@@ -1,384 +1,41 @@
-name: Appium Mobile Automation
+name: Appium Mobile Tests
 
 on:
-  # ===========================================================
-  # RUN ON PUSH
-  # ===========================================================
-  push:
-    branches:
-      - main
-      - develop
-
-  # ===========================================================
-  # RUN ON PULL REQUEST
-  # ===========================================================
-  pull_request:
-    branches:
-      - main
-      - develop
-
-  # ===========================================================
-  # MANUAL RUN
-  # ===========================================================
   workflow_dispatch:
     inputs:
       environment:
-        description: Select test environment
+        description: 'Environment to run the tests against'
         required: true
+        default: 'qa'
         type: choice
-        default: QA
         options:
-          - QA
-          - STAGING
-          - PROD
-
+          - qa
+          - staging
+          - prod
       headless:
-        description: Run Android emulator headless
+        description: 'Run Emulator in Headless mode'
         required: true
-        type: choice
-        default: 'true'
-        options:
-          - 'true'
-          - 'false'
+        default: true
+        type: boolean
 
-# ===========================================================
-# JOB
-# ===========================================================
 jobs:
-  appium-tests:
-    name: Appium Android Tests
-    runs-on: windows-latest
-
-    # ========================================================
-    # GITHUB ENVIRONMENT
-    # ========================================================
-    environment:
-      name: ${{ inputs.environment || 'QA' }}
-
-    # ========================================================
-    # GLOBAL ENVIRONMENT
-    # ========================================================
-    env:
-      # ------------------------------------------------------
-      # IMPORTANT
-      #
-      # GitHub Environment contains ONE variable:
-      # QA, STAGING, or PROD
-      #
-      # Each variable contains the complete KEY=VALUE config.
-      # ------------------------------------------------------
-      APPIUM_ENV_CONFIG: ${{ vars[inputs.environment || 'QA'] }}
-      HEADLESS: ${{ inputs.headless || 'true' }}
-      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
-
+  mobile-tests:
+    runs-on: self-hosted # Requires your local Windows machine connected as a runner
+    
     steps:
-
-      # ======================================================
-      # CHECKOUT
-      # ======================================================
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ======================================================
-      # CACHE DEPENDENCIES
-      # ======================================================
-      - name: Cache Maven dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-
-      - name: Cache Appium & NPM
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.appium
-            ~\AppData\Roaming\npm
-            ~\AppData\Roaming\npm-cache
-          key: ${{ runner.os }}-appium-globals
-
-      # ======================================================
-      # LOAD ENVIRONMENT CONFIGURATION
-      # ======================================================
-      - name: Load environment configuration
-        shell: powershell
-        run: |
-          Write-Host ""
-          Write-Host "================================================"
-          Write-Host "       LOADING APPIUM ENVIRONMENT"
-          Write-Host "================================================"
-          Write-Host ""
-
-          $config = $env:APPIUM_ENV_CONFIG
-
-          # --------------------------------------------------
-          # Validate configuration exists
-          # --------------------------------------------------
-          if ([string]::IsNullOrWhiteSpace($config)) {
-              Write-Error "Environment configuration is empty."
-              Write-Host ""
-              Write-Host "Expected GitHub Environment variable:"
-              Write-Host "QA      -> multiline QA configuration"
-              Write-Host "STAGING -> multiline STAGING configuration"
-              Write-Host "PROD    -> multiline PROD configuration"
-              exit 1
-          }
-
-          Write-Host "Configuration received successfully."
-          Write-Host ""
-
-          # --------------------------------------------------
-          # Parse KEY=VALUE configuration
-          # --------------------------------------------------
-          foreach ($line in ($config -split "`r?`n")) {
-              $line = $line.Trim()
-
-              # Skip blank lines & comments
-              if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
-                  continue
-              }
-
-              # Split only on first '='
-              $parts = $line -split '=', 2
-
-              if ($parts.Count -ne 2) {
-                  Write-Warning "Skipping invalid configuration line: $line"
-                  continue
-              }
-
-              $key = $parts[0].Trim()
-              $value = $parts[1].Trim()
-
-              if ([string]::IsNullOrWhiteSpace($key)) { continue }
-
-              # Add variable for subsequent GitHub Actions steps
-              "$key=$value" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-              Write-Host "Loaded: $key"
-          }
-
-          Write-Host ""
-          Write-Host "Environment configuration loaded successfully."
-          Write-Host "================================================"
-          Write-Host ""
-
-      # ======================================================
-      # SETUP APPIUM / ANDROID
-      # ======================================================
-      - name: Setup Appium environment
+      - name: 1. Setup Appium & Dependencies
         uses: ./.github/actions/setup-appium
         with:
-          headless: ${{ env.HEADLESS }}
+          environment: ${{ inputs.environment }}
 
-      # ======================================================
-      # VALIDATE CONFIGURATION
-      # ======================================================
-      - name: Validate environment configuration
-        shell: powershell
-        run: |
-          Write-Host ""
-          Write-Host "================================================"
-          Write-Host "       VALIDATING ENVIRONMENT"
-          Write-Host "================================================"
-          Write-Host ""
-
-          $requiredVariables = @(
-              "ENVIRONMENT", "APP_PACKAGE", "APP_ACTIVITY", "APP_WAIT_ACTIVITY",
-              "PLATFORM_NAME", "AUTOMATION_NAME", "DEVICE_NAME", "ADB_PATH",
-              "ADB_EXEC_TIMEOUT", "CHROMEDRIVER_EXECUTABLE", "NEW_COMMAND_TIMEOUT",
-              "APP_WAIT_FOR_QUIESCENCE", "WAIT_FOR_IDLE_TIMEOUT", "DISABLE_WINDOW_ANIMATION",
-              "AUTO_GRANT_PERMISSIONS", "UNICODE_KEYBOARD", "RESET_KEYBOARD"
-          )
-
-          $missing = @()
-
-          foreach ($variable in $requiredVariables) {
-              $value = [Environment]::GetEnvironmentVariable($variable)
-              if ([string]::IsNullOrWhiteSpace($value)) {
-                  $missing += $variable
-              }
-          }
-
-          if ($missing.Count -gt 0) {
-              Write-Host ""
-              Write-Host "Missing environment variables:"
-              foreach ($variable in $missing) { Write-Host "  - $variable" }
-              exit 1
-          }
-
-          Write-Host "All required environment variables are loaded."
-          Write-Host ""
-
-      # ======================================================
-      # DISPLAY CONFIGURATION
-      # ======================================================
-      - name: Display test configuration
-        shell: powershell
-        run: |
-          Write-Host ""
-          Write-Host "================================================"
-          Write-Host "       APPIUM MOBILE AUTOMATION"
-          Write-Host "================================================"
-          Write-Host ""
-
-          Write-Host "Execution Configuration"
-          Write-Host "------------------------------------------------"
-          Write-Host "GitHub Environment : ${{ inputs.environment || 'QA' }}"
-          Write-Host "Application Env    : $env:ENVIRONMENT"
-          Write-Host "Headless           : $env:HEADLESS"
-
-          Write-Host ""
-          Write-Host "Application"
-          Write-Host "------------------------------------------------"
-          Write-Host "Package            : $env:APP_PACKAGE"
-          Write-Host "Activity           : $env:APP_ACTIVITY"
-          Write-Host "Wait Activity      : $env:APP_WAIT_ACTIVITY"
-
-          Write-Host ""
-          Write-Host "Appium"
-          Write-Host "------------------------------------------------"
-          Write-Host "Platform           : $env:PLATFORM_NAME"
-          Write-Host "Automation         : $env:AUTOMATION_NAME"
-          Write-Host "Device             : $env:DEVICE_NAME"
-
-          Write-Host ""
-          Write-Host "ADB"
-          Write-Host "------------------------------------------------"
-          Write-Host "ADB Path           : $env:ADB_PATH"
-          Write-Host "ADB Timeout        : $env:ADB_EXEC_TIMEOUT"
-
-          Write-Host ""
-          Write-Host "ChromeDriver"
-          Write-Host "------------------------------------------------"
-          Write-Host "Executable         : $env:CHROMEDRIVER_EXECUTABLE"
-
-          Write-Host ""
-          Write-Host "Timeouts"
-          Write-Host "------------------------------------------------"
-          Write-Host "New Command        : $env:NEW_COMMAND_TIMEOUT"
-          Write-Host "Wait Idle          : $env:WAIT_FOR_IDLE_TIMEOUT"
-
-          Write-Host ""
-          Write-Host "Android Settings"
-          Write-Host "------------------------------------------------"
-          Write-Host "Window Animation   : $env:DISABLE_WINDOW_ANIMATION"
-          Write-Host "Auto Grant         : $env:AUTO_GRANT_PERMISSIONS"
-          Write-Host "Unicode Keyboard   : $env:UNICODE_KEYBOARD"
-          Write-Host "Reset Keyboard     : $env:RESET_KEYBOARD"
-
-          Write-Host ""
-          Write-Host "================================================"
-          Write-Host ""
-
-      # ======================================================
-      # INSTALL APPLICATION APK
-      # ======================================================
-      - name: Install application APK
-        shell: powershell
-        run: |
-          Write-Host ""
-          Write-Host "================================================"
-          Write-Host "       INSTALLING APPLICATION"
-          Write-Host "================================================"
-          Write-Host ""
-
-          $apkPath = Join-Path $env:GITHUB_WORKSPACE "src\test\resources\test.apk"
-          $udid = "emulator-5554"
-
-          Write-Host "APK: $apkPath"
-          Write-Host "Device: $udid"
-          Write-Host ""
-
-          # --------------------------------------------------
-          # Check APK
-          # --------------------------------------------------
-          if (-not (Test-Path $apkPath)) {
-              Write-Error "APK not found: $apkPath"
-              exit 1
-          }
-
-          $apk = Get-Item $apkPath
-          Write-Host "APK found successfully."
-          Write-Host "APK size: $($apk.Length) bytes"
-          Write-Host ""
-
-          if ($apk.Length -lt 1000) {
-              Write-Error "APK file appears to be invalid or empty."
-              exit 1
-          }
-
-          # --------------------------------------------------
-          # Verify emulator is available
-          # --------------------------------------------------
-          $deviceExists = adb devices | Select-String "^$udid\s+device$"
-
-          if (-not $deviceExists) {
-              Write-Error "Android emulator '$udid' is not available."
-              adb devices
-              exit 1
-          }
-
-          # --------------------------------------------------
-          # Install APK
-          # --------------------------------------------------
-          Write-Host "Installing APK..."
-          adb -s $udid install -r "$apkPath"
-
-          if ($LASTEXITCODE -ne 0) {
-              Write-Error "APK installation failed."
-              exit 1
-          }
-
-          Write-Host ""
-          Write-Host "APK installed successfully."
-
-          # --------------------------------------------------
-          # Verify configured package
-          # --------------------------------------------------
-          $package = $env:APP_PACKAGE
-
-          if ([string]::IsNullOrWhiteSpace($package)) {
-              Write-Error "APP_PACKAGE is empty."
-              exit 1
-          }
-
-          Write-Host ""
-          Write-Host "Expected package: $package"
-
-          $installed = adb -s $udid shell pm list packages | Select-String "package:$package"
-
-          if (-not $installed) {
-              Write-Error "Package '$package' was not found after installation."
-              Write-Host ""
-              Write-Host "Installed packages matching swag|example:"
-              adb -s $udid shell pm list packages | Select-String "swag|example"
-              exit 1
-          }
-
-          Write-Host ""
-          Write-Host "Package '$package' verified on emulator."
-          Write-Host ""
-          Write-Host "================================================"
-          Write-Host "       APPLICATION READY"
-          Write-Host "================================================"
-          Write-Host ""
-
-      # ======================================================
-      # RUN APPIUM TESTS
-      # ======================================================
-      - name: Run Appium tests
+      - name: 2. Run Emulator & Tests
         uses: ./.github/actions/run-tests
         with:
-          test-dir: src/test/java/tests
-          udid: emulator-5554
-          server-port: 4723
-          system-port: 8200
-          chrome-port: 9515
+          headless: ${{ inputs.headless }}
 
-      # ======================================================
-      # ALLURE + ARTIFACTS
-      # ======================================================
-      - name: Generate Allure report and upload artifacts
-        if: always()
+      - name: 3. Generate Reports & Artifacts
+        if: always() # Runs even if the tests fail
         uses: ./.github/actions/allure-report
