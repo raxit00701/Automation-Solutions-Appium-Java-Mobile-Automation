@@ -1,36 +1,154 @@
-name: 'Run Tests'
-description: 'Starts Cloud Emulator, Appium server, and triggers TestNG'
+name: Run Appium Tests
+
+description: >
+  Start Appium server and execute Maven Appium/TestNG tests.
+
 inputs:
-  headless:
-    description: 'Run headless'
+  server-port:
+    description: Appium server port
     required: true
+    default: '4724'
+
+  test-directory:
+    description: Test source directory
+    required: true
+    default: 'src/test/java/tests'
 
 runs:
-  using: "composite"
-  steps:
-    - name: Start Appium Server (Background)
-      shell: bash
-      run: |
-        echo "Starting Appium server..."
-        # Starting Appium in the background and allowing it to download ChromeDriver automatically
-        appium --allow-insecure chromedriver_autodownload > appium.log 2>&1 &
-        sleep 10 # Allow server time to bind to port 4723
+  using: composite
 
-    - name: Run Cloud Android Emulator & Tests
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: 34 # API level 34 is well-supported on GitHub Mac runners
-        target: google_apis
-        arch: x86_64
-        profile: pixel_6
-        # Dynamically injects -no-window if inputs.headless is true
-        emulator-options: -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none ${{ inputs.headless == 'true' && '-no-window' || '' }}
-        script: |
-          echo "Emulator is fully booted and ready!"
-          
-          # IMPORTANT: The GitHub runner is empty. You must install your APK before running tests.
-          # Update the path below to point to wherever your APK is located in your repository.
-          # adb install -r path/to/your/app.apk
-          
-          echo "Running Maven TestNG Suite..."
-          mvn clean test -DsuiteXmlFile=testng.xml
+  steps:
+
+    # ---------------------------------------------------------
+    # Clean old Appium / Allure data
+    # ---------------------------------------------------------
+
+    - name: Clean previous test output
+      shell: powershell
+      run: |
+        if (Test-Path "allure-results") {
+            Remove-Item "allure-results" -Recurse -Force
+        }
+
+        if (Test-Path "allure-report") {
+            Remove-Item "allure-report" -Recurse -Force
+        }
+
+        New-Item -ItemType Directory -Force -Path "allure-results" | Out-Null
+
+    # ---------------------------------------------------------
+    # Start Appium
+    # ---------------------------------------------------------
+
+    - name: Start Appium server
+      shell: powershell
+      env:
+        APPIUM_PORT: ${{ inputs.server-port }}
+      run: |
+
+        Write-Host "Starting Appium on port $env:APPIUM_PORT"
+
+        $logFile = Join-Path $env:GITHUB_WORKSPACE "appium.log"
+
+        $process = Start-Process `
+            -FilePath "appium" `
+            -ArgumentList "--port", $env:APPIUM_PORT `
+            -RedirectStandardOutput $logFile `
+            -RedirectStandardError $logFile `
+            -PassThru
+
+        $process.Id | Out-File `
+            -FilePath "$env:GITHUB_WORKSPACE\appium.pid" `
+            -Encoding ascii
+
+        Write-Host "Appium PID: $($process.Id)"
+
+        $ready = $false
+
+        for ($i = 0; $i -lt 30; $i++) {
+
+            try {
+                $response = Invoke-WebRequest `
+                    -Uri "http://127.0.0.1:$env:APPIUM_PORT/status" `
+                    -UseBasicParsing `
+                    -TimeoutSec 2
+
+                if ($response.StatusCode -eq 200) {
+                    $ready = $true
+                    break
+                }
+            }
+            catch {
+                Start-Sleep -Seconds 2
+            }
+        }
+
+        if (-not $ready) {
+            Write-Host "Appium log:"
+            if (Test-Path $logFile) {
+                Get-Content $logFile
+            }
+
+            throw "Appium server failed to start."
+        }
+
+        Write-Host "Appium server is ready."
+
+    # ---------------------------------------------------------
+    # Run Maven
+    # ---------------------------------------------------------
+
+    - name: Run Appium TestNG tests
+      shell: powershell
+      run: |
+
+        Write-Host "Environment: $env:ENVIRONMENT"
+        Write-Host "Package: $env:APP_PACKAGE"
+        Write-Host "Activity: $env:APP_ACTIVITY"
+
+        mvn --batch-mode test `
+          -DserverPort=4724 `
+          -Dudid=emulator-5554 `
+          -DsystemPort=8200 `
+          -DchromePort=9515
+
+    # ---------------------------------------------------------
+    # Always save diagnostics
+    # ---------------------------------------------------------
+
+    - name: Capture emulator diagnostics
+      if: always()
+      shell: powershell
+      run: |
+
+        $adb = if ($env:ADB_PATH) {
+            $env:ADB_PATH
+        } else {
+            "adb"
+        }
+
+        & $adb devices | Out-File "adb-devices.txt"
+
+        & $adb shell getprop | Out-File "android-properties.txt"
+
+    # ---------------------------------------------------------
+    # Stop Appium
+    # ---------------------------------------------------------
+
+    - name: Stop Appium
+      if: always()
+      shell: powershell
+      run: |
+
+        if (Test-Path "$env:GITHUB_WORKSPACE\appium.pid") {
+
+            $pid = Get-Content "$env:GITHUB_WORKSPACE\appium.pid"
+
+            try {
+                Stop-Process -Id $pid -Force -ErrorAction Stop
+                Write-Host "Appium stopped."
+            }
+            catch {
+                Write-Host "Appium process already stopped."
+            }
+        }
