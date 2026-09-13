@@ -164,42 +164,32 @@ runs:
         Write-Host "Appium version:"
         appium --version
 
-    # =========================================================
+        # =========================================================
     # APPIUM UIAUTOMATOR2 DRIVER
     # =========================================================
 
-    - name: Install UiAutomator2 driver
+    - name: Ensure UiAutomator2 driver
       shell: powershell
       run: |
+
         Write-Host "=========================================="
-        Write-Host "APPIUM DRIVERS"
+        Write-Host "UIAUTOMATOR2 DRIVER"
         Write-Host "=========================================="
 
         Write-Host ""
-        Write-Host "Checking installed Appium drivers..."
+        Write-Host "Checking UiAutomator2 driver..."
 
-        appium driver list --installed
+        $driverPath = Join-Path $env:USERPROFILE ".appium\node_modules\appium-uiautomator2-driver"
 
-        if ($LASTEXITCODE -ne 0) {
-            throw "Unable to query installed Appium drivers."
-        }
+        if (Test-Path $driverPath) {
 
-        Write-Host ""
-        Write-Host "Checking whether UiAutomator2 is installed..."
+            Write-Host "UiAutomator2 driver directory found."
+            Write-Host "Path: $driverPath"
 
-        $driverOutput = appium driver list --installed 2>$null
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to query Appium drivers."
-        }
-
-        if ($driverOutput -match "uiautomator2") {
-            Write-Host ""
-            Write-Host "UiAutomator2 driver is already installed."
         }
         else {
-            Write-Host ""
-            Write-Host "UiAutomator2 driver is NOT installed."
+
+            Write-Host "UiAutomator2 driver directory not found."
             Write-Host "Installing UiAutomator2..."
 
             appium driver install uiautomator2
@@ -208,10 +198,12 @@ runs:
                 throw "Failed to install UiAutomator2 driver."
             }
 
-            Write-Host ""
-            Write-Host "UiAutomator2 driver installed successfully."
+            Write-Host "UiAutomator2 installation completed."
+
         }
 
+        Write-Host ""
+        Write-Host "UiAutomator2 driver check completed."
         Write-Host ""
         Write-Host "=========================================="
         Write-Host "FINAL APPIUM DRIVER LIST"
