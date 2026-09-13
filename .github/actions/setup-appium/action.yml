@@ -2,7 +2,7 @@ name: 'Setup Appium and Dependencies'
 description: 'Installs JDK, Appium, caches dependencies, and sets dynamic env variables'
 inputs:
   environment:
-    description: 'Target Environment (qa, staging, prod)'
+    description: 'Target Environment'
     required: true
 
 runs:
@@ -13,7 +13,7 @@ runs:
       with:
         distribution: 'temurin'
         java-version: '17'
-        cache: 'maven' # Automatically caches ~/.m2 dependencies
+        cache: 'maven' 
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -27,36 +27,22 @@ runs:
         npm install -g appium
         appium driver install uiautomator2 || echo "UiAutomator2 already installed"
 
-    - name: Set Dynamic Environment Variables
-      shell: bash
+    - name: Generate .env from GitHub Environment Variable
+      shell: powershell
+      env:
+        # Pulls all variables from the active environment into a JSON object
+        GITHUB_VARS_JSON: ${{ toJSON(vars) }}
       run: |
-        echo "Injecting variables for ${{ inputs.environment }} environment"
+        Write-Host "Extracting variables for the ${{ inputs.environment }} environment..."
         
-        # 1. Map environment-specific variables
-        if [ "${{ inputs.environment }}" == "qa" ]; then
-          echo "ENVIRONMENT=qa" >> $GITHUB_ENV
-          echo "APP_PACKAGE=com.swaglabsmobileapp" >> $GITHUB_ENV
-        elif [ "${{ inputs.environment }}" == "staging" ]; then
-          echo "ENVIRONMENT=staging" >> $GITHUB_ENV
-          echo "APP_PACKAGE=com.example.staging" >> $GITHUB_ENV
-        elif [ "${{ inputs.environment }}" == "prod" ]; then
-          echo "ENVIRONMENT=prod" >> $GITHUB_ENV
-          echo "APP_PACKAGE=com.example.prod" >> $GITHUB_ENV
-        fi
-
-        # 2. Map global common variables
-        echo "APP_ACTIVITY=.SplashActivity" >> $GITHUB_ENV
-        echo "APP_WAIT_ACTIVITY=*" >> $GITHUB_ENV
-        echo "PLATFORM_NAME=Android" >> $GITHUB_ENV
-        echo "AUTOMATION_NAME=UiAutomator2" >> $GITHUB_ENV
-        echo "DEVICE_NAME=Android" >> $GITHUB_ENV
-        echo "ADB_PATH=adb" >> $GITHUB_ENV
-        echo "CHROMEDRIVER_EXECUTABLE=C:\chromedriver.exe" >> $GITHUB_ENV
-        echo "ADB_EXEC_TIMEOUT=60" >> $GITHUB_ENV
-        echo "NEW_COMMAND_TIMEOUT=300" >> $GITHUB_ENV
-        echo "APP_WAIT_FOR_QUIESCENCE=false" >> $GITHUB_ENV
-        echo "DISABLE_WINDOW_ANIMATION=true" >> $GITHUB_ENV
-        echo "AUTO_GRANT_PERMISSIONS=true" >> $GITHUB_ENV
-        echo "UNICODE_KEYBOARD=true" >> $GITHUB_ENV
-        echo "RESET_KEYBOARD=true" >> $GITHUB_ENV
-        echo "WAIT_FOR_IDLE_TIMEOUT=0" >> $GITHUB_ENV
+        # Convert the GitHub vars JSON into a PowerShell object
+        $varsObj = $env:GITHUB_VARS_JSON | ConvertFrom-Json
+        
+        # Since you only have 1 variable per environment containing a multi-line string,
+        # we dynamically grab the value of that first/only variable.
+        $envContent = $varsObj.PSObject.Properties.Value | Select-Object -First 1
+        
+        # Write the multi-line string directly to the .env file
+        Set-Content -Path ".env" -Value $envContent
+        
+        Write-Host "Successfully generated .env file!"
