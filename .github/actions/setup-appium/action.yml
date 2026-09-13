@@ -9,6 +9,10 @@ inputs:
     description: GitHub Environment name
     required: true
 
+  environment-config:
+    description: Multiline environment configuration from GitHub Environment variable
+    required: true
+
   emulator-mode:
     description: head or headless
     required: true
@@ -29,9 +33,9 @@ runs:
 
   steps:
 
-    # ---------------------------------------------------------
-    # Java
-    # ---------------------------------------------------------
+    # =========================================================
+    # JAVA
+    # =========================================================
 
     - name: Setup Java 17
       uses: actions/setup-java@v6
@@ -40,29 +44,21 @@ runs:
         java-version: '17'
         cache: maven
 
-    # ---------------------------------------------------------
-    # Node
-    # ---------------------------------------------------------
-
-    - name: Setup Node
-      uses: actions/setup-node@v7
-      with:
-        node-version: '24'
-        cache: npm
-
-    # ---------------------------------------------------------
-    # Load GitHub Environment configuration
-    # ---------------------------------------------------------
+    # =========================================================
+    # LOAD ENVIRONMENT CONFIGURATION
+    # =========================================================
 
     - name: Load environment configuration
       shell: powershell
       env:
-        ENV_CONFIG: ${{ vars[inputs.environment] }}
+        ENV_CONFIG: ${{ inputs.environment-config }}
       run: |
-        Write-Host "Loading environment: ${{ inputs.environment }}"
+        Write-Host "=========================================="
+        Write-Host "Environment: ${{ inputs.environment }}"
+        Write-Host "=========================================="
 
         if ([string]::IsNullOrWhiteSpace($env:ENV_CONFIG)) {
-            throw "No configuration found for GitHub Environment '${{ inputs.environment }}'."
+            throw "Environment configuration is empty."
         }
 
         $lines = $env:ENV_CONFIG -split "`r?`n"
@@ -87,94 +83,196 @@ runs:
             $name = $Matches[1].Trim()
             $value = $Matches[2].Trim()
 
-            "$name=$value" | Out-File `
-              -FilePath $env:GITHUB_ENV `
-              -Encoding utf8 `
-              -Append
+            # Write to GitHub environment for subsequent steps
+            "$name=$value" |
+                Out-File `
+                    -FilePath $env:GITHUB_ENV `
+                    -Encoding utf8 `
+                    -Append
 
-            Write-Host "Loaded $name"
+            Write-Host "Loaded: $name"
         }
 
-    # ---------------------------------------------------------
-    # Verify Java / Maven
-    # ---------------------------------------------------------
+        Write-Host ""
+        Write-Host "Environment configuration loaded successfully."
 
-    - name: Verify Java
+    # =========================================================
+    # NODE
+    # =========================================================
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: '24'
+
+    # =========================================================
+    # CACHE NPM
+    # =========================================================
+
+    - name: Get npm cache directory
+      id: npm-cache
       shell: powershell
       run: |
+        $cachePath = npm config get cache
+        "path=$cachePath" >> $env:GITHUB_OUTPUT
+
+    - name: Cache npm
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.npm-cache.outputs.path }}
+        key: ${{ runner.os }}-npm-appium
+        restore-keys: |
+          ${{ runner.os }}-npm-
+
+    # =========================================================
+    # VERIFY JAVA / MAVEN
+    # =========================================================
+
+    - name: Verify Java and Maven
+      shell: powershell
+      run: |
+        Write-Host "Java:"
         java -version
+
+        Write-Host ""
+        Write-Host "Maven:"
         mvn -version
 
-    # ---------------------------------------------------------
-    # Install Appium
-    # ---------------------------------------------------------
+    # =========================================================
+    # APPIUM
+    # =========================================================
 
     - name: Install Appium
       shell: powershell
       run: |
+
         $appium = Get-Command appium -ErrorAction SilentlyContinue
 
         if ($null -eq $appium) {
-            Write-Host "Appium not found. Installing..."
+
+            Write-Host "Appium is not installed."
+            Write-Host "Installing Appium..."
+
             npm install -g appium
+
         }
         else {
-            Write-Host "Appium already installed:"
-            appium --version
+
+            Write-Host "Appium already installed."
+
         }
 
-    # ---------------------------------------------------------
-    # Install UiAutomator2 driver
-    # ---------------------------------------------------------
+        Write-Host ""
+        appium --version
+
+    # =========================================================
+    # APPIUM UIAUTOMATOR2 DRIVER
+    # =========================================================
 
     - name: Install UiAutomator2 driver
       shell: powershell
       run: |
-        appium driver list --installed
 
-        appium driver list --installed |
-          Select-String "uiautomator2"
+        Write-Host "Checking installed Appium drivers..."
 
-        if ($LASTEXITCODE -ne 0) {
+        $drivers = appium driver list --installed
+
+        Write-Host $drivers
+
+        if ($drivers -notmatch "uiautomator2") {
+
+            Write-Host "UiAutomator2 driver not found."
+            Write-Host "Installing UiAutomator2..."
+
             appium driver install uiautomator2
+
+        }
+        else {
+
+            Write-Host "UiAutomator2 driver already installed."
+
         }
 
+        Write-Host ""
+        Write-Host "Installed drivers:"
         appium driver list --installed
 
-    # ---------------------------------------------------------
-    # Verify ADB
-    # ---------------------------------------------------------
+    # =========================================================
+    # ADB
+    # =========================================================
 
     - name: Verify ADB
       shell: powershell
       run: |
-        $adb = if ($env:ADB_PATH) {
-            $env:ADB_PATH
-        } else {
-            "adb"
+
+        if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
+
+            $adb = "adb"
+
         }
+        else {
+
+            $adb = $env:ADB_PATH
+
+        }
+
+        Write-Host "ADB command: $adb"
 
         & $adb version
 
-    # ---------------------------------------------------------
-    # Verify emulator
-    # ---------------------------------------------------------
+        if ($LASTEXITCODE -ne 0) {
+            throw "ADB is not working."
+        }
 
-    - name: Verify emulator
+    # =========================================================
+    # ANDROID EMULATOR
+    # =========================================================
+
+    - name: Verify Android emulator
       shell: powershell
       env:
         EMULATOR_PATH: ${{ inputs.emulator-path }}
       run: |
+
         if (-not (Test-Path $env:EMULATOR_PATH)) {
-            throw "Android emulator not found at $env:EMULATOR_PATH"
+
+            throw "Android emulator not found at: $env:EMULATOR_PATH"
+
         }
 
-        Write-Host "Emulator:"
+        Write-Host "Android emulator found:"
+        Write-Host $env:EMULATOR_PATH
+
         & $env:EMULATOR_PATH -version
 
-    # ---------------------------------------------------------
-    # Start emulator
-    # ---------------------------------------------------------
+    # =========================================================
+    # VERIFY AVD
+    # =========================================================
+
+    - name: Verify AVD
+      shell: powershell
+      env:
+        AVD_NAME: ${{ inputs.avd-name }}
+      run: |
+
+        Write-Host "Checking AVD: $env:AVD_NAME"
+
+        $avdList = & $env:EMULATOR_PATH -list-avds 2>$null
+
+        if ($avdList -notcontains $env:AVD_NAME) {
+
+            Write-Host "Available AVDs:"
+            $avdList
+
+            throw "AVD '$env:AVD_NAME' was not found."
+
+        }
+
+        Write-Host "AVD '$env:AVD_NAME' found."
+
+    # =========================================================
+    # START EMULATOR
+    # =========================================================
 
     - name: Start Android emulator
       shell: powershell
@@ -184,46 +282,64 @@ runs:
         EMULATOR_MODE: ${{ inputs.emulator-mode }}
       run: |
 
-        Write-Host "Starting AVD: $env:AVD_NAME"
-        Write-Host "Mode: $env:EMULATOR_MODE"
-
         $adb = if ($env:ADB_PATH) {
             $env:ADB_PATH
-        } else {
+        }
+        else {
             "adb"
         }
 
-        # Check if emulator already exists
+        Write-Host "=========================================="
+        Write-Host "Starting Android Emulator"
+        Write-Host "AVD  : $env:AVD_NAME"
+        Write-Host "Mode : $env:EMULATOR_MODE"
+        Write-Host "=========================================="
+
+        & $adb start-server
+
         $devices = & $adb devices
 
         if ($devices -match "emulator-5554\s+device") {
+
             Write-Host "emulator-5554 is already running."
+
         }
         else {
 
             $arguments = @(
-                "-avd", $env:AVD_NAME,
+                "-avd",
+                $env:AVD_NAME,
                 "-verbose"
             )
 
             if ($env:EMULATOR_MODE -eq "headless") {
+
+                Write-Host "Running emulator in HEADLESS mode."
+
                 $arguments += "-no-window"
                 $arguments += "-no-audio"
                 $arguments += "-no-boot-anim"
+
+            }
+            else {
+
+                Write-Host "Running emulator in HEAD mode."
+
             }
 
-            Write-Host "Launching emulator..."
+            Write-Host "Starting emulator..."
 
             Start-Process `
                 -FilePath $env:EMULATOR_PATH `
                 -ArgumentList $arguments `
                 -WorkingDirectory (Split-Path $env:EMULATOR_PATH) `
-                -PassThru
+                -PassThru | Out-Null
+
         }
 
-    # ---------------------------------------------------------
-    # Wait for emulator
-    # ---------------------------------------------------------
+    # =========================================================
+    # WAIT FOR EMULATOR
+    # =========================================================
 
     - name: Wait for Android emulator
       shell: powershell
@@ -231,11 +347,12 @@ runs:
 
         $adb = if ($env:ADB_PATH) {
             $env:ADB_PATH
-        } else {
+        }
+        else {
             "adb"
         }
 
-        Write-Host "Waiting for emulator..."
+        Write-Host "Waiting for emulator device..."
 
         & $adb wait-for-device
 
@@ -249,20 +366,33 @@ runs:
             Write-Host "boot_completed = '$boot'"
 
             if ($boot -eq "1") {
+
+                Write-Host "Android boot completed."
+
                 break
+
             }
 
             Start-Sleep -Seconds 5
+
             $elapsed += 5
+
         }
 
         if ($elapsed -ge $timeout) {
-            Write-Host "ADB devices:"
+
+            Write-Host "=========================================="
+            Write-Host "ADB DEVICES"
+            Write-Host "=========================================="
+
             & $adb devices
 
-            throw "Android emulator failed to boot within $timeout seconds."
+            throw "Android emulator failed to boot within 300 seconds."
+
         }
 
+        Write-Host ""
         Write-Host "Android emulator is ready."
+        Write-Host ""
 
         & $adb devices
