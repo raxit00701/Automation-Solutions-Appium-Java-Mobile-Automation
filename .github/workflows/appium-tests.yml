@@ -1,156 +1,1391 @@
-name: Appium Mobile Tests
+
+name: Appium Mobile Automation
 
 on:
+
+  # ============================================================
+  # MANUAL RUN
+  # ============================================================
+
   workflow_dispatch:
+
     inputs:
+
       environment:
-        description: 'Target Environment'
+        description: "Select test environment"
         required: true
-        default: 'qa'
         type: choice
         options:
-          - qa
-          - staging
-          - prod
-      is_headless:
-        description: 'Run Emulator in Headless Mode (-no-window)'
+          - QA
+          - STAGE
+          - PROD
+        default: QA
+
+      emulator_mode:
+        description: "Select Android emulator mode"
         required: true
-        default: true
-        type: boolean
+        type: choice
+        options:
+          - headless
+          - headed
+        default: headless
+
+
+  # ============================================================
+  # PUSH
+  # ============================================================
+
+  push:
+    branches:
+      - main
+
+
+  # ============================================================
+  # PULL REQUEST
+  # ============================================================
+
+  pull_request:
+    branches:
+      - main
+
+
+# ==============================================================
+# GLOBAL ENVIRONMENT
+# ==============================================================
+
+env:
+
+  # ------------------------------------------------------------
+  # Java
+  # ------------------------------------------------------------
+
+  JAVA_VERSION: "17"
+
+
+  # ------------------------------------------------------------
+  # Android
+  # ------------------------------------------------------------
+
+  ANDROID_HOME: "C:\\Android"
+
+  ANDROID_AVD: "Pixel_API_35"
+
+  ANDROID_SERIAL: "emulator-5554"
+
+  EMULATOR_EXECUTABLE: "C:\\Android\\emulator\\emulator.exe"
+
+  EMULATOR_BOOT_TIMEOUT: "180"
+
+
+  # ------------------------------------------------------------
+  # Appium
+  # ------------------------------------------------------------
+
+  APPIUM_PORT: "4724"
+
+  APPIUM_SERVER_URL: "http://127.0.0.1:4724"
+
+  SYSTEM_PORT: "8200"
+
+  CHROME_PORT: "9515"
+
+
+  # ------------------------------------------------------------
+  # Maven
+  # ------------------------------------------------------------
+
+  MAVEN_OPTS: "-Xmx2048m"
+
+
+# ==============================================================
+# JOB
+# ==============================================================
 
 jobs:
-  run-appium-tests:
-    runs-on: self-hosted
+
+  mobile-tests:
+
+    name: Appium Tests - ${{ inputs.environment || 'QA' }}
+
+
+    # ----------------------------------------------------------
+    # EXISTING SELF-HOSTED WINDOWS RUNNER
+    # ----------------------------------------------------------
+
+    runs-on:
+      - self-hosted
+      - Windows
+
+
+    # ----------------------------------------------------------
+    # DYNAMIC GITHUB ENVIRONMENT
+    #
+    # QA
+    # STAGE
+    # PROD
+    # ----------------------------------------------------------
+
+    environment:
+      name: ${{ inputs.environment || 'QA' }}
+
+
+    timeout-minutes: 60
+
 
     steps:
-      - name: Checkout Repository
+
+
+      # ========================================================
+      # 1. CHECKOUT
+      # ========================================================
+
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+
+      # ========================================================
+      # 2. SETUP JAVA
+      # ========================================================
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'maven' # Automatically caches ~/.m2/repository
+          distribution: temurin
+          java-version: "17"
+          cache: maven
 
-      - name: Prepare Dynamic Environment Variables
-        shell: pwsh
-        run: |
-          $envName = "${{ github.event.inputs.environment }}"
-          
-          # 1. Save to GitHub Actions inbuilt variables for workflow access
-          echo "ENVIRONMENT=$envName" >> $env:GITHUB_ENV
-          
-          # 2. Generate the .env file for your java-dotenv library
-          $envContent = @"
-          ENVIRONMENT=$envName
-          PLATFORM_NAME=Android
-          AUTOMATION_NAME=UiAutomator2
-          DEVICE_NAME=Android
-          ADB_PATH=adb
-          CHROMEDRIVER_EXECUTABLE=C:\chromedriver.exe
-          ADB_EXEC_TIMEOUT=60
-          NEW_COMMAND_TIMEOUT=300
-          APP_WAIT_FOR_QUIESCENCE=false
-          DISABLE_WINDOW_ANIMATION=true
-          AUTO_GRANT_PERMISSIONS=true
-          UNICODE_KEYBOARD=true
-          RESET_KEYBOARD=true
-          WAIT_FOR_IDLE_TIMEOUT=0
-          "@
-          
-          if ($envName -eq "qa") {
-              $envContent += "`nAPP_PACKAGE=com.swaglabsmobileapp"
-              $envContent += "`nAPP_ACTIVITY=.SplashActivity"
-              $envContent += "`nAPP_WAIT_ACTIVITY=*"
-          } elseif ($envName -eq "staging") {
-              $envContent += "`nAPP_PACKAGE=com.example.staging"
-              $envContent += "`nAPP_ACTIVITY=.SplashActivity"
-              $envContent += "`nAPP_WAIT_ACTIVITY=*"
-          } elseif ($envName -eq "prod") {
-              $envContent += "`nAPP_PACKAGE=com.example.prod"
-              $envContent += "`nAPP_ACTIVITY=.SplashActivity"
-              $envContent += "`nAPP_WAIT_ACTIVITY=*"
-          }
-          
-          $envContent | Out-File -FilePath .env -Encoding utf8
-          Write-Host "Created .env file for $envName environment."
 
-      - name: Start Appium Server
-        shell: pwsh
-        run: |
-          # Start Appium on the port specified in your testng.xml (4724)
-          Start-Process -FilePath "appium" -ArgumentList "--port 4724" -WindowStyle Hidden
-          Start-Sleep -Seconds 5
-          Write-Host "Appium Server started."
+      # ========================================================
+      # 3. VERIFY LOCAL AUTOMATION TOOLS
+      # ========================================================
 
-      - name: Start Local Emulator
-        shell: pwsh
+      - name: Verify local automation tools
+        shell: powershell
         run: |
-          $emulatorArgs = "-avd Pixel_API_35 -verbose"
-          if ("${{ github.event.inputs.is_headless }}" -eq "true") {
-              $emulatorArgs += " -no-window"
-          }
-          Write-Host "Starting Emulator with args: $emulatorArgs"
-          
-          Start-Process -FilePath "C:\Android\emulator\emulator.exe" -ArgumentList $emulatorArgs -WindowStyle Hidden
-          
-          Write-Host "Waiting for emulator to come online..."
-          adb wait-for-device
-          
-          # Wait until boot completes
-          $booted = $false
-          for ($i = 0; $i -lt 90; $i++) {
-              $status = adb shell getprop sys.boot_completed
-              if ($status -match "1") {
-                  Write-Host "Emulator booted successfully!"
-                  $booted = $true
-                  break
-              }
-              Start-Sleep -Seconds 2
-          }
-          
-          if (-not $booted) {
-              Write-Error "Emulator failed to boot within timeout."
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "LOCAL AUTOMATION ENVIRONMENT"
+          Write-Host "=========================================="
+
+          Write-Host ""
+          Write-Host "Java:"
+          java -version
+
+
+          Write-Host ""
+          Write-Host "Maven:"
+          mvn -version
+
+
+          Write-Host ""
+          Write-Host "ADB:"
+          adb version
+
+
+          Write-Host ""
+          Write-Host "Android Emulator:"
+
+          if (-not (Test-Path "${env:EMULATOR_EXECUTABLE}")) {
+
+              Write-Error "Android emulator not found at:"
+              Write-Error "${env:EMULATOR_EXECUTABLE}"
+
               exit 1
           }
 
-      - name: Run Tests
-        run: mvn clean verify
-        continue-on-error: true # Ensures artifacts upload even if a test fails
+          & "${env:EMULATOR_EXECUTABLE}" -version
 
-      - name: Cache Allure History
+
+          Write-Host ""
+          Write-Host "Appium:"
+
+          appium --version
+
+
+          Write-Host ""
+          Write-Host "Android SDK:"
+          Write-Host "${env:ANDROID_HOME}"
+
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "BASIC TOOL CHECK COMPLETE"
+          Write-Host "=========================================="
+
+
+      # ========================================================
+      # 4. FIND LOCAL CHROME
+      # ========================================================
+
+      - name: Detect installed Chrome
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "DETECTING CHROME"
+          Write-Host "=========================================="
+
+
+          $chromePaths = @(
+
+              "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+
+              "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+
+              "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+
+          )
+
+
+          $chromeFound = $false
+
+
+          foreach ($chromePath in $chromePaths) {
+
+              if (Test-Path $chromePath) {
+
+                  Write-Host "Chrome found:"
+                  Write-Host $chromePath
+
+                  try {
+
+                      & $chromePath --version
+
+                  }
+                  catch {
+
+                      Write-Host "Unable to read Chrome version."
+
+                  }
+
+                  "CHROME_EXECUTABLE=$chromePath" |
+                      Out-File -FilePath $env:GITHUB_ENV -Append
+
+                  $chromeFound = $true
+
+                  break
+              }
+          }
+
+
+          if (-not $chromeFound) {
+
+              Write-Error "Google Chrome was not found on the Windows runner."
+
+              exit 1
+          }
+
+
+      # ========================================================
+      # 5. FIND LOCAL CHROMEDRIVER
+      #
+      # We DO NOT assume C:\chromedriver.exe anymore.
+      #
+      # Search:
+      #   PATH
+      #   common locations
+      #   C:\chromedriver.exe
+      # ========================================================
+
+      - name: Detect ChromeDriver
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "DETECTING CHROMEDRIVER"
+          Write-Host "=========================================="
+
+
+          $chromeDriver = $null
+
+
+          # ----------------------------------------------------
+          # 1. Check PATH
+          # ----------------------------------------------------
+
+          $command = Get-Command chromedriver.exe -ErrorAction SilentlyContinue
+
+          if ($null -ne $command) {
+
+              $chromeDriver = $command.Source
+
+              Write-Host "ChromeDriver found on PATH:"
+              Write-Host $chromeDriver
+          }
+
+
+          # ----------------------------------------------------
+          # 2. Check common locations
+          # ----------------------------------------------------
+
+          if ($null -eq $chromeDriver) {
+
+              $possiblePaths = @(
+
+                  "C:\chromedriver.exe",
+
+                  "C:\ChromeDriver\chromedriver.exe",
+
+                  "C:\tools\chromedriver.exe",
+
+                  "C:\WebDriver\chromedriver.exe",
+
+                  "$env:USERPROFILE\chromedriver.exe",
+
+                  "$env:USERPROFILE\WebDriver\chromedriver.exe",
+
+                  "$env:LOCALAPPDATA\chromedriver\chromedriver.exe"
+
+              )
+
+
+              foreach ($path in $possiblePaths) {
+
+                  if (Test-Path $path) {
+
+                      $chromeDriver = $path
+
+                      Write-Host "ChromeDriver found:"
+                      Write-Host $chromeDriver
+
+                      break
+                  }
+              }
+          }
+
+
+          # ----------------------------------------------------
+          # 3. ChromeDriver not found
+          # ----------------------------------------------------
+
+          if ($null -eq $chromeDriver) {
+
+              Write-Host ""
+              Write-Host "ChromeDriver was not found."
+              Write-Host ""
+              Write-Host "Searching the C: drive..."
+
+              $searchResult = Get-ChildItem `
+                  -Path "C:\" `
+                  -Filter "chromedriver.exe" `
+                  -File `
+                  -Recurse `
+                  -ErrorAction SilentlyContinue |
+                  Select-Object -First 1
+
+
+              if ($null -ne $searchResult) {
+
+                  $chromeDriver = $searchResult.FullName
+
+                  Write-Host ""
+                  Write-Host "ChromeDriver found:"
+                  Write-Host $chromeDriver
+              }
+          }
+
+
+          # ----------------------------------------------------
+          # 4. Final validation
+          # ----------------------------------------------------
+
+          if ($null -eq $chromeDriver) {
+
+              Write-Error @"
+
+          ChromeDriver was NOT found on this self-hosted runner.
+
+          Chrome and ChromeDriver are different:
+
+              Chrome       = Browser
+              ChromeDriver = WebDriver executable
+
+          If your Appium tests use Android Chrome/WebView,
+          install a compatible ChromeDriver ONCE on this
+          self-hosted Windows machine.
+
+          Then make sure this works:
+
+              where.exe chromedriver
+
+          The workflow will automatically detect it.
+
+          "@
+
+              exit 1
+          }
+
+
+          Write-Host ""
+          Write-Host "ChromeDriver version:"
+
+          & $chromeDriver --version
+
+
+          # ----------------------------------------------------
+          # Make ChromeDriver available to later steps
+          # ----------------------------------------------------
+
+          "CHROMEDRIVER_EXECUTABLE=$chromeDriver" |
+              Out-File -FilePath $env:GITHUB_ENV -Append
+
+
+      # ========================================================
+      # 6. CACHE MAVEN
+      #
+      # setup-java already handles Maven dependency caching.
+      # ========================================================
+
+      - name: Display Maven cache information
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "Maven dependency cache enabled through setup-java."
+          Write-Host "Maven local repository:"
+          Write-Host "$env:USERPROFILE\.m2\repository"
+
+
+      # ========================================================
+      # 7. CACHE APPIUM DRIVER
+      #
+      # Do NOT use package-lock.json.
+      #
+      # Appium is already installed globally on this runner.
+      # We only cache its driver data.
+      # ========================================================
+
+      - name: Cache Appium driver
         uses: actions/cache@v4
         with:
-          path: .allure-history
-          key: allure-history-${{ github.run_id }}
+
+          path: |
+            C:\Users\runneradmin\.appium
+
+          key: appium-uiautomator2-${{ runner.os }}-${{ runner.arch }}-v1
+
           restore-keys: |
-            allure-history-
+            appium-uiautomator2-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Upload Allure Results Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: allure-results-${{ github.event.inputs.environment }}
-          path: allure-results/
-          retention-days: 14
 
-      - name: Upload TestNG Reports Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: testng-reports-${{ github.event.inputs.environment }}
-          path: target/surefire-reports/
-          retention-days: 14
+      # ========================================================
+      # 8. VERIFY UIAUTOMATOR2
+      # ========================================================
 
-      - name: Teardown - Kill Emulator & Appium
-        if: always()
-        shell: pwsh
+      - name: Verify Appium UiAutomator2 driver
+        shell: powershell
         run: |
-          # Shut down the emulator gracefully
-          adb -s emulator-5554 emu kill
-          
-          # Kill Appium process running on port 4724
-          $appiumProcess = Get-NetTCPConnection -LocalPort 4724 -ErrorAction SilentlyContinue
-          if ($appiumProcess) {
-              Stop-Process -Id $appiumProcess.OwningProcess -Force
-              Write-Host "Appium server stopped."
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "APPIUM DRIVERS"
+          Write-Host "=========================================="
+
+
+          appium driver list
+
+
+          $drivers = appium driver list 2>&1 | Out-String
+
+
+          if ($drivers -notmatch "uiautomator2") {
+
+              Write-Host ""
+              Write-Host "UiAutomator2 driver not found."
+              Write-Host "Installing UiAutomator2..."
+
+              appium driver install uiautomator2
+
           }
+          else {
+
+              Write-Host ""
+              Write-Host "UiAutomator2 driver already installed."
+
+          }
+
+
+          Write-Host ""
+          Write-Host "Final Appium driver list:"
+
+          appium driver list
+
+
+      # ========================================================
+      # 9. PREPARE DIRECTORIES
+      # ========================================================
+
+      - name: Prepare test directories
+        shell: powershell
+        run: |
+
+          Write-Host "Preparing test directories..."
+
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "allure-results" |
+            Out-Null
+
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "allure-report" |
+            Out-Null
+
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "artifacts" |
+            Out-Null
+
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path "logs" |
+            Out-Null
+
+
+          Write-Host "Directories ready."
+
+
+      # ========================================================
+      # 10. DISPLAY GITHUB ENVIRONMENT
+      # ========================================================
+
+      - name: Display selected environment
+        shell: powershell
+        env:
+
+          TEST_ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
+          APP_PACKAGE: ${{ vars.APP_PACKAGE }}
+
+          APP_ACTIVITY: ${{ vars.APP_ACTIVITY }}
+
+          APP_WAIT_ACTIVITY: ${{ vars.APP_WAIT_ACTIVITY }}
+
+          PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
+
+          AUTOMATION_NAME: ${{ vars.AUTOMATION_NAME }}
+
+          DEVICE_NAME: ${{ vars.DEVICE_NAME }}
+
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "TEST CONFIGURATION"
+          Write-Host "=========================================="
+
+
+          Write-Host "Environment       : $env:TEST_ENVIRONMENT"
+
+          Write-Host "App Package       : $env:APP_PACKAGE"
+
+          Write-Host "App Activity      : $env:APP_ACTIVITY"
+
+          Write-Host "Wait Activity     : $env:APP_WAIT_ACTIVITY"
+
+          Write-Host "Platform          : $env:PLATFORM_NAME"
+
+          Write-Host "Automation        : $env:AUTOMATION_NAME"
+
+          Write-Host "Device             : $env:DEVICE_NAME"
+
+          Write-Host "AVD                 : $env:ANDROID_AVD"
+
+          Write-Host "UDID                : $env:ANDROID_SERIAL"
+
+          Write-Host "Emulator Mode      : ${{ inputs.emulator_mode || 'headless' }}"
+
+          Write-Host "Appium Port        : $env:APPIUM_PORT"
+
+          Write-Host "System Port        : $env:SYSTEM_PORT"
+
+          Write-Host "Chrome Port        : $env:CHROME_PORT"
+
+          Write-Host "ChromeDriver       : $env:CHROMEDRIVER_EXECUTABLE"
+
+
+      # ========================================================
+      # 11. CLEAN PREVIOUS RUN
+      #
+      # IMPORTANT:
+      # We no longer kill every node.exe process.
+      # ========================================================
+
+      - name: Clean previous Appium and emulator
+        shell: powershell
+        continue-on-error: true
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "CLEANING PREVIOUS RUN"
+          Write-Host "=========================================="
+
+
+          # ----------------------------------------------------
+          # Stop Appium processes that are listening on 4724
+          # ----------------------------------------------------
+
+          Write-Host "Checking Appium port..."
+
+          $connections = Get-NetTCPConnection `
+              -LocalPort $env:APPIUM_PORT `
+              -State Listen `
+              -ErrorAction SilentlyContinue
+
+
+          foreach ($connection in $connections) {
+
+              $processId = $connection.OwningProcess
+
+              Write-Host "Stopping process $processId on Appium port..."
+
+              Stop-Process `
+                  -Id $processId `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+          }
+
+
+          # ----------------------------------------------------
+          # Stop emulator
+          # ----------------------------------------------------
+
+          Write-Host "Stopping existing emulator..."
+
+
+          $existingEmulator = Get-Process `
+              -Name "emulator" `
+              -ErrorAction SilentlyContinue
+
+
+          if ($null -ne $existingEmulator) {
+
+              $existingEmulator |
+                  Stop-Process `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+
+          }
+
+
+          # ----------------------------------------------------
+          # Restart ADB
+          # ----------------------------------------------------
+
+          adb kill-server 2>$null
+
+          Start-Sleep -Seconds 3
+
+
+          Write-Host "Previous run cleanup complete."
+
+
+      # ========================================================
+      # 12. START ADB
+      # ========================================================
+
+      - name: Start ADB server
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "Starting ADB..."
+
+          adb start-server
+
+
+          Write-Host ""
+          Write-Host "ADB devices:"
+
+          adb devices
+
+
+      # ========================================================
+      # 13. START EXISTING ANDROID EMULATOR
+      # ========================================================
+
+      - name: Start Android emulator
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "STARTING ANDROID EMULATOR"
+          Write-Host "=========================================="
+
+
+          $emulator = $env:EMULATOR_EXECUTABLE
+
+
+          if (-not (Test-Path $emulator)) {
+
+              Write-Error "Emulator executable not found:"
+              Write-Error $emulator
+
+              exit 1
+          }
+
+
+          $mode = "${{ inputs.emulator_mode || 'headless' }}"
+
+
+          Write-Host "AVD  : $env:ANDROID_AVD"
+
+          Write-Host "Mode : $mode"
+
+          Write-Host "UDID : $env:ANDROID_SERIAL"
+
+
+          if ($mode -eq "headless") {
+
+              Write-Host ""
+              Write-Host "Starting HEADLESS emulator..."
+
+
+              Start-Process `
+                -FilePath $emulator `
+                -ArgumentList @(
+                    "-avd",
+                    "$env:ANDROID_AVD",
+                    "-no-window",
+                    "-no-audio",
+                    "-no-boot-anim",
+                    "-gpu",
+                    "swiftshader_indirect"
+                ) `
+                -RedirectStandardOutput "$PWD\logs\emulator.log" `
+                -RedirectStandardError "$PWD\logs\emulator-error.log"
+
+          }
+          else {
+
+              Write-Host ""
+              Write-Host "Starting HEADED emulator..."
+
+
+              Start-Process `
+                -FilePath $emulator `
+                -ArgumentList @(
+                    "-avd",
+                    "$env:ANDROID_AVD",
+                    "-no-boot-anim"
+                ) `
+                -RedirectStandardOutput "$PWD\logs\emulator.log" `
+                -RedirectStandardError "$PWD\logs\emulator-error.log"
+
+          }
+
+
+          Write-Host "Emulator process started."
+
+
+      # ========================================================
+      # 14. WAIT FOR EMULATOR
+      # ========================================================
+
+      - name: Wait for Android emulator
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "WAITING FOR EMULATOR"
+          Write-Host "=========================================="
+
+
+          $timeout = [int]$env:EMULATOR_BOOT_TIMEOUT
+
+          $elapsed = 0
+
+          $booted = $false
+
+
+          while ($elapsed -lt $timeout) {
+
+
+              Write-Host ""
+              Write-Host "Elapsed: $elapsed seconds"
+
+
+              $devices = adb devices
+
+              Write-Host $devices
+
+
+              $deviceReady = adb devices |
+                  Select-String "$env:ANDROID_SERIAL\s+device"
+
+
+              if ($null -ne $deviceReady) {
+
+
+                  Write-Host "ADB device detected."
+
+
+                  $bootCompleted = adb `
+                      -s $env:ANDROID_SERIAL `
+                      shell getprop sys.boot_completed `
+                      2>$null
+
+
+                  if ($bootCompleted.Trim() -eq "1") {
+
+                      Write-Host ""
+                      Write-Host "Android emulator boot completed."
+
+                      $booted = $true
+
+                      break
+                  }
+
+              }
+
+
+              Start-Sleep -Seconds 5
+
+              $elapsed += 5
+          }
+
+
+          if (-not $booted) {
+
+              Write-Error "Android emulator failed to boot within $timeout seconds."
+
+
+              Write-Host ""
+              Write-Host "Final ADB devices:"
+
+              adb devices
+
+
+              Write-Host ""
+              Write-Host "Emulator log:"
+
+              if (Test-Path "logs\emulator.log") {
+
+                  Get-Content "logs\emulator.log" -Tail 200
+
+              }
+
+
+              Write-Host ""
+              Write-Host "Emulator error log:"
+
+              if (Test-Path "logs\emulator-error.log") {
+
+                  Get-Content "logs\emulator-error.log" -Tail 200
+
+              }
+
+
+              exit 1
+          }
+
+
+      # ========================================================
+      # 15. CONFIGURE EMULATOR
+      # ========================================================
+
+      - name: Configure Android emulator
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "CONFIGURING EMULATOR"
+          Write-Host "=========================================="
+
+
+          adb -s $env:ANDROID_SERIAL shell settings put global window_animation_scale 0
+
+          adb -s $env:ANDROID_SERIAL shell settings put global transition_animation_scale 0
+
+          adb -s $env:ANDROID_SERIAL shell settings put global animator_duration_scale 0
+
+
+          Write-Host ""
+          Write-Host "Android version:"
+
+          adb -s $env:ANDROID_SERIAL shell getprop ro.build.version.release
+
+
+          Write-Host ""
+          Write-Host "Android SDK:"
+
+          adb -s $env:ANDROID_SERIAL shell getprop ro.build.version.sdk
+
+
+          Write-Host ""
+          Write-Host "Device model:"
+
+          adb -s $env:ANDROID_SERIAL shell getprop ro.product.model
+
+
+          Write-Host ""
+          Write-Host "Device serial:"
+
+          adb -s $env:ANDROID_SERIAL get-serialno
+
+
+      # ========================================================
+      # 16. START APPIUM SERVER
+      # ========================================================
+
+      - name: Start Appium server
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "STARTING APPIUM"
+          Write-Host "=========================================="
+
+
+          $appiumLog = "$PWD\logs\appium.log"
+
+          $appiumErrorLog = "$PWD\logs\appium-error.log"
+
+
+          Start-Process `
+            -FilePath "appium" `
+            -ArgumentList @(
+                "--address",
+                "127.0.0.1",
+                "--port",
+                "$env:APPIUM_PORT",
+                "--log-level",
+                "info"
+            ) `
+            -RedirectStandardOutput $appiumLog `
+            -RedirectStandardError $appiumErrorLog
+
+
+          Write-Host "Appium process started."
+
+
+          # ----------------------------------------------------
+          # Wait for Appium
+          # ----------------------------------------------------
+
+          $maxAttempts = 30
+
+          $attempt = 0
+
+          $appiumReady = $false
+
+
+          while ($attempt -lt $maxAttempts) {
+
+              try {
+
+                  $response = Invoke-WebRequest `
+                      -Uri "$env:APPIUM_SERVER_URL/status" `
+                      -UseBasicParsing `
+                      -TimeoutSec 3
+
+
+                  if ($response.StatusCode -eq 200) {
+
+                      Write-Host ""
+                      Write-Host "Appium server is READY."
+
+                      $appiumReady = $true
+
+                      break
+                  }
+
+              }
+              catch {
+
+                  Write-Host "Waiting for Appium..."
+
+              }
+
+
+              Start-Sleep -Seconds 2
+
+              $attempt++
+          }
+
+
+          if (-not $appiumReady) {
+
+              Write-Error "Appium server failed to start."
+
+
+              Write-Host ""
+              Write-Host "Appium log:"
+
+              if (Test-Path $appiumLog) {
+
+                  Get-Content $appiumLog -Tail 300
+
+              }
+
+
+              Write-Host ""
+              Write-Host "Appium error log:"
+
+              if (Test-Path $appiumErrorLog) {
+
+                  Get-Content $appiumErrorLog -Tail 300
+
+              }
+
+
+              exit 1
+          }
+
+
+      # ========================================================
+      # 17. RUN MAVEN TESTS
+      # ========================================================
+
+      - name: Run Appium TestNG tests
+        shell: powershell
+
+        env:
+
+          # ----------------------------------------------------
+          # GitHub Environment variables
+          # ----------------------------------------------------
+
+          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
+          APP_PACKAGE: ${{ vars.APP_PACKAGE }}
+
+          APP_ACTIVITY: ${{ vars.APP_ACTIVITY }}
+
+          APP_WAIT_ACTIVITY: ${{ vars.APP_WAIT_ACTIVITY }}
+
+          PLATFORM_NAME: ${{ vars.PLATFORM_NAME }}
+
+          AUTOMATION_NAME: ${{ vars.AUTOMATION_NAME }}
+
+          DEVICE_NAME: ${{ vars.DEVICE_NAME }}
+
+          ADB_PATH: ${{ vars.ADB_PATH }}
+
+          ADB_EXEC_TIMEOUT: ${{ vars.ADB_EXEC_TIMEOUT }}
+
+          NEW_COMMAND_TIMEOUT: ${{ vars.NEW_COMMAND_TIMEOUT }}
+
+          APP_WAIT_FOR_QUIESCENCE: ${{ vars.APP_WAIT_FOR_QUIESCENCE }}
+
+          DISABLE_WINDOW_ANIMATION: ${{ vars.DISABLE_WINDOW_ANIMATION }}
+
+          AUTO_GRANT_PERMISSIONS: ${{ vars.AUTO_GRANT_PERMISSIONS }}
+
+          UNICODE_KEYBOARD: ${{ vars.UNICODE_KEYBOARD }}
+
+          RESET_KEYBOARD: ${{ vars.RESET_KEYBOARD }}
+
+          WAIT_FOR_IDLE_TIMEOUT: ${{ vars.WAIT_FOR_IDLE_TIMEOUT }}
+
+
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "RUNNING APPIUM TESTS"
+          Write-Host "=========================================="
+
+
+          Write-Host "Environment       : $env:ENVIRONMENT"
+
+          Write-Host "App Package       : $env:APP_PACKAGE"
+
+          Write-Host "App Activity      : $env:APP_ACTIVITY"
+
+          Write-Host "Platform          : $env:PLATFORM_NAME"
+
+          Write-Host "Automation        : $env:AUTOMATION_NAME"
+
+          Write-Host "Device            : $env:DEVICE_NAME"
+
+          Write-Host "UDID              : $env:ANDROID_SERIAL"
+
+          Write-Host "Appium Server     : $env:APPIUM_SERVER_URL"
+
+          Write-Host "ChromeDriver      : $env:CHROMEDRIVER_EXECUTABLE"
+
+
+          # ----------------------------------------------------
+          # Maven test execution
+          # ----------------------------------------------------
+
+          mvn clean test `
+            -Denv="$env:ENVIRONMENT" `
+            -DappPackage="$env:APP_PACKAGE" `
+            -DappActivity="$env:APP_ACTIVITY" `
+            -DappWaitActivity="$env:APP_WAIT_ACTIVITY" `
+            -DplatformName="$env:PLATFORM_NAME" `
+            -DautomationName="$env:AUTOMATION_NAME" `
+            -DdeviceName="$env:DEVICE_NAME" `
+            -Dudid="$env:ANDROID_SERIAL" `
+            -DappiumServerUrl="$env:APPIUM_SERVER_URL" `
+            -DserverPort="$env:APPIUM_PORT" `
+            -DsystemPort="$env:SYSTEM_PORT" `
+            -DchromePort="$env:CHROME_PORT" `
+            -DadbPath="$env:ADB_PATH" `
+            -Dchromedriver="$env:CHROMEDRIVER_EXECUTABLE" `
+            -DadbExecTimeout="$env:ADB_EXEC_TIMEOUT" `
+            -DnewCommandTimeout="$env:NEW_COMMAND_TIMEOUT" `
+            -DappWaitForQuiescence="$env:APP_WAIT_FOR_QUIESCENCE" `
+            -DdisableWindowAnimation="$env:DISABLE_WINDOW_ANIMATION" `
+            -DautoGrantPermissions="$env:AUTO_GRANT_PERMISSIONS" `
+            -DunicodeKeyboard="$env:UNICODE_KEYBOARD" `
+            -DresetKeyboard="$env:RESET_KEYBOARD" `
+            -DwaitForIdleTimeout="$env:WAIT_FOR_IDLE_TIMEOUT"
+
+
+      # ========================================================
+      # 18. GENERATE ALLURE REPORT
+      # ========================================================
+
+      - name: Generate Allure report
+        if: always()
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "GENERATING ALLURE REPORT"
+          Write-Host "=========================================="
+
+
+          if (Test-Path "allure-results") {
+
+              $resultFiles = Get-ChildItem `
+                  "allure-results" `
+                  -File `
+                  -ErrorAction SilentlyContinue
+
+
+              if ($resultFiles.Count -gt 0) {
+
+                  Write-Host "Allure result files found: $($resultFiles.Count)"
+
+                  mvn allure:report `
+                    -Dallure.results.directory="$PWD\allure-results" `
+                    -Dallure.report.directory="$PWD\allure-report"
+
+              }
+              else {
+
+                  Write-Host "No Allure result files found."
+
+              }
+
+          }
+          else {
+
+              Write-Host "allure-results directory does not exist."
+
+          }
+
+
+      # ========================================================
+      # 19. COLLECT TEST ARTIFACTS
+      # ========================================================
+
+      - name: Collect test artifacts
+        if: always()
+        shell: powershell
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "COLLECTING ARTIFACTS"
+          Write-Host "=========================================="
+
+
+          # ----------------------------------------------------
+          # Surefire
+          # ----------------------------------------------------
+
+          if (Test-Path "target\surefire-reports") {
+
+              Copy-Item `
+                -Path "target\surefire-reports" `
+                -Destination "artifacts\surefire-reports" `
+                -Recurse `
+                -Force
+
+          }
+
+
+          # ----------------------------------------------------
+          # Allure results
+          # ----------------------------------------------------
+
+          if (Test-Path "allure-results") {
+
+              Copy-Item `
+                -Path "allure-results" `
+                -Destination "artifacts\allure-results" `
+                -Recurse `
+                -Force
+
+          }
+
+
+          # ----------------------------------------------------
+          # Allure HTML report
+          # ----------------------------------------------------
+
+          if (Test-Path "allure-report") {
+
+              Copy-Item `
+                -Path "allure-report" `
+                -Destination "artifacts\allure-report" `
+                -Recurse `
+                -Force
+
+          }
+
+
+          # ----------------------------------------------------
+          # Logs
+          # ----------------------------------------------------
+
+          if (Test-Path "logs") {
+
+              Copy-Item `
+                -Path "logs" `
+                -Destination "artifacts\logs" `
+                -Recurse `
+                -Force
+
+          }
+
+
+          # ----------------------------------------------------
+          # Environment information
+          # ----------------------------------------------------
+
+          @"
+          Environment: $env:ENVIRONMENT
+          AVD: $env:ANDROID_AVD
+          Device: $env:ANDROID_SERIAL
+          Appium Port: $env:APPIUM_PORT
+          System Port: $env:SYSTEM_PORT
+          Chrome Port: $env:CHROME_PORT
+          ChromeDriver: $env:CHROMEDRIVER_EXECUTABLE
+          "@ |
+            Out-File "artifacts\environment.txt"
+
+
+          Write-Host ""
+          Write-Host "Artifact collection complete."
+
+
+      # ========================================================
+      # 20. UPLOAD ARTIFACTS
+      # ========================================================
+
+      - name: Upload Appium test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+
+          name: appium-test-results-${{ inputs.environment || 'QA' }}-${{ github.run_number }}
+
+          path: artifacts/
+
+          if-no-files-found: warn
+
+          retention-days: 14
+
+
+      # ========================================================
+      # 21. FINAL CLEANUP
+      # ========================================================
+
+      - name: Cleanup Appium and emulator
+        if: always()
+        shell: powershell
+        continue-on-error: true
+        run: |
+
+          Write-Host ""
+          Write-Host "=========================================="
+          Write-Host "FINAL CLEANUP"
+          Write-Host "=========================================="
+
+
+          # ----------------------------------------------------
+          # Stop Appium using its port
+          # ----------------------------------------------------
+
+          Write-Host "Stopping Appium..."
+
+
+          $connections = Get-NetTCPConnection `
+              -LocalPort $env:APPIUM_PORT `
+              -State Listen `
+              -ErrorAction SilentlyContinue
+
+
+          foreach ($connection in $connections) {
+
+              $processId = $connection.OwningProcess
+
+              Write-Host "Stopping Appium process: $processId"
+
+
+              Stop-Process `
+                  -Id $processId `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+          }
+
+
+          # ----------------------------------------------------
+          # Stop emulator gracefully
+          # ----------------------------------------------------
+
+          Write-Host "Stopping Android emulator..."
+
+
+          adb -s $env:ANDROID_SERIAL emu kill 2>$null
+
+
+          Start-Sleep -Seconds 5
+
+
+          # ----------------------------------------------------
+          # Force kill emulator if still running
+          # ----------------------------------------------------
+
+          $emulatorProcess = Get-Process `
+              -Name "emulator" `
+              -ErrorAction SilentlyContinue
+
+
+          if ($null -ne $emulatorProcess) {
+
+              Write-Host "Force stopping emulator process..."
+
+              $emulatorProcess |
+                  Stop-Process `
+                  -Force `
+                  -ErrorAction SilentlyContinue
+          }
+
+
+          Write-Host ""
+          Write-Host "Cleanup complete."
+```
