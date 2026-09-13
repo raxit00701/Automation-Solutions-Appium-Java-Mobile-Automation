@@ -1,5 +1,5 @@
 name: 'Run Tests'
-description: 'Starts Emulator, Appium server, and triggers TestNG'
+description: 'Starts Cloud Emulator, Appium server, and triggers TestNG'
 inputs:
   headless:
     description: 'Run headless'
@@ -8,34 +8,29 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Start Appium Server
-      shell: powershell
-      run: |
-        Start-Process -FilePath "appium" -NoNewWindow
-        Start-Sleep -Seconds 10 # Allow server time to bind to port 4723
-
-    - name: Start Local Android Emulator
-      shell: powershell
-      run: |
-        $emulatorArgs = "-avd Pixel_API_35 -verbose"
-        
-        # Append headless flag dynamically
-        if ('${{ inputs.headless }}' -eq 'true') {
-          $emulatorArgs += " -no-window"
-        }
-        
-        Write-Host "Starting Emulator with args: $emulatorArgs"
-        Start-Process -FilePath "C:\Android\emulator\emulator.exe" -ArgumentList $emulatorArgs -NoNewWindow
-        
-        Write-Host "Waiting for device to connect..."
-        & adb wait-for-device
-        
-        Write-Host "Waiting for Android to finish booting..."
-        while ((& adb shell getprop sys.boot_completed) -notmatch '1') { 
-          Start-Sleep -Seconds 5 
-        }
-        Write-Host "Emulator is fully booted and ready!"
-
-    - name: Run Maven TestNG Suite
+    - name: Start Appium Server (Background)
       shell: bash
-      run: mvn clean test -DsuiteXmlFile=testng.xml
+      run: |
+        echo "Starting Appium server..."
+        # Starting Appium in the background and allowing it to download ChromeDriver automatically
+        appium --allow-insecure chromedriver_autodownload > appium.log 2>&1 &
+        sleep 10 # Allow server time to bind to port 4723
+
+    - name: Run Cloud Android Emulator & Tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 34 # API level 34 is well-supported on GitHub Mac runners
+        target: google_apis
+        arch: x86_64
+        profile: pixel_6
+        # Dynamically injects -no-window if inputs.headless is true
+        emulator-options: -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none ${{ inputs.headless == 'true' && '-no-window' || '' }}
+        script: |
+          echo "Emulator is fully booted and ready!"
+          
+          # IMPORTANT: The GitHub runner is empty. You must install your APK before running tests.
+          # Update the path below to point to wherever your APK is located in your repository.
+          # adb install -r path/to/your/app.apk
+          
+          echo "Running Maven TestNG Suite..."
+          mvn clean test -DsuiteXmlFile=testng.xml
