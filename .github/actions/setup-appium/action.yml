@@ -30,7 +30,6 @@ inputs:
 
 runs:
   using: composite
-
   steps:
 
     # =========================================================
@@ -38,7 +37,7 @@ runs:
     # =========================================================
 
     - name: Setup Java 17
-      uses: actions/setup-java@v6
+      uses: actions/setup-java@v4 # FIXED: v6 does not exist. Latest is v4.
       with:
         distribution: temurin
         java-version: '17'
@@ -64,7 +63,6 @@ runs:
         $lines = $env:ENV_CONFIG -split "`r?`n"
 
         foreach ($line in $lines) {
-
             $line = $line.Trim()
 
             if ([string]::IsNullOrWhiteSpace($line)) {
@@ -83,11 +81,7 @@ runs:
             $name = $Matches[1].Trim()
             $value = $Matches[2].Trim()
 
-            "$name=$value" |
-                Out-File `
-                    -FilePath $env:GITHUB_ENV `
-                    -Encoding utf8 `
-                    -Append
+            "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
             Write-Host "Loaded: $name"
         }
@@ -100,9 +94,9 @@ runs:
     # =========================================================
 
     - name: Setup Node.js
-      uses: actions/setup-node@v7
+      uses: actions/setup-node@v4 # FIXED: v7 does not exist. Latest is v4.
       with:
-        node-version: '24'
+        node-version: '20' # Adjusted to latest stable LTS (24 is not standard LTS yet)
 
     # =========================================================
     # CACHE NPM
@@ -119,7 +113,6 @@ runs:
         }
 
         Write-Host "npm cache: $cachePath"
-
         "path=$cachePath" >> $env:GITHUB_OUTPUT
 
     - name: Cache npm
@@ -140,14 +133,12 @@ runs:
         Write-Host "=========================================="
         Write-Host "JAVA"
         Write-Host "=========================================="
-
         java -version
 
         Write-Host ""
         Write-Host "=========================================="
         Write-Host "MAVEN"
         Write-Host "=========================================="
-
         mvn -version
 
     # =========================================================
@@ -157,27 +148,20 @@ runs:
     - name: Install Appium
       shell: powershell
       run: |
-
         $appium = Get-Command appium -ErrorAction SilentlyContinue
 
         if ($null -eq $appium) {
-
             Write-Host "Appium is not installed."
             Write-Host "Installing Appium..."
-
             npm install -g appium
-
         }
         else {
-
             Write-Host "Appium already installed."
             Write-Host "Location: $($appium.Source)"
-
         }
 
         Write-Host ""
         Write-Host "Appium version:"
-
         appium --version
 
     # =========================================================
@@ -187,19 +171,35 @@ runs:
     - name: Install UiAutomator2 driver
       shell: powershell
       run: |
-
         Write-Host "=========================================="
         Write-Host "APPIUM DRIVERS"
         Write-Host "=========================================="
 
-        $drivers = appium driver list --installed 2>&1
+        Write-Host ""
+        Write-Host "Checking installed Appium drivers..."
 
-        Write-Host $drivers
+        appium driver list --installed
 
-        if ($drivers -notmatch "uiautomator2") {
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to query installed Appium drivers."
+        }
 
+        Write-Host ""
+        Write-Host "Checking whether UiAutomator2 is installed..."
+
+        $driverOutput = appium driver list --installed 2>$null
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to query Appium drivers."
+        }
+
+        if ($driverOutput -match "uiautomator2") {
             Write-Host ""
-            Write-Host "UiAutomator2 driver not found."
+            Write-Host "UiAutomator2 driver is already installed."
+        }
+        else {
+            Write-Host ""
+            Write-Host "UiAutomator2 driver is NOT installed."
             Write-Host "Installing UiAutomator2..."
 
             appium driver install uiautomator2
@@ -208,18 +208,23 @@ runs:
                 throw "Failed to install UiAutomator2 driver."
             }
 
-        }
-        else {
-
             Write-Host ""
-            Write-Host "UiAutomator2 driver already installed."
-
+            Write-Host "UiAutomator2 driver installed successfully."
         }
 
         Write-Host ""
-        Write-Host "Installed Appium drivers:"
+        Write-Host "=========================================="
+        Write-Host "FINAL APPIUM DRIVER LIST"
+        Write-Host "=========================================="
 
         appium driver list --installed
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to verify installed Appium drivers."
+        }
+
+        Write-Host ""
+        Write-Host "Appium driver setup completed successfully."
 
     # =========================================================
     # ADB
@@ -228,7 +233,6 @@ runs:
     - name: Verify ADB
       shell: powershell
       run: |
-
         if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
             $adb = "adb"
         }
@@ -239,7 +243,6 @@ runs:
         Write-Host "=========================================="
         Write-Host "ADB"
         Write-Host "=========================================="
-
         Write-Host "ADB command: $adb"
 
         & $adb version
@@ -250,7 +253,6 @@ runs:
 
         Write-Host ""
         Write-Host "ADB devices:"
-
         & $adb devices
 
     # =========================================================
@@ -262,20 +264,16 @@ runs:
       env:
         EMULATOR_PATH: ${{ inputs.emulator-path }}
       run: |
-
         Write-Host "=========================================="
         Write-Host "ANDROID EMULATOR"
         Write-Host "=========================================="
 
         if (-not (Test-Path $env:EMULATOR_PATH)) {
-
             throw "Android emulator not found at: $env:EMULATOR_PATH"
-
         }
 
         Write-Host "Android emulator found:"
         Write-Host $env:EMULATOR_PATH
-
         Write-Host ""
         Write-Host "Emulator version:"
 
@@ -291,11 +289,9 @@ runs:
         EMULATOR_PATH: ${{ inputs.emulator-path }}
         AVD_NAME: ${{ inputs.avd-name }}
       run: |
-
         Write-Host "=========================================="
         Write-Host "ANDROID VIRTUAL DEVICE"
         Write-Host "=========================================="
-
         Write-Host "Checking AVD: $env:AVD_NAME"
 
         if (-not (Test-Path $env:EMULATOR_PATH)) {
@@ -309,9 +305,7 @@ runs:
         $avdList
 
         if ($avdList -notcontains $env:AVD_NAME) {
-
             throw "AVD '$env:AVD_NAME' was not found."
-
         }
 
         Write-Host ""
@@ -328,7 +322,6 @@ runs:
         AVD_NAME: ${{ inputs.avd-name }}
         EMULATOR_MODE: ${{ inputs.emulator-mode }}
       run: |
-
         $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
             "adb"
         }
@@ -339,7 +332,6 @@ runs:
         Write-Host "=========================================="
         Write-Host "STARTING ANDROID EMULATOR"
         Write-Host "=========================================="
-
         Write-Host "AVD  : $env:AVD_NAME"
         Write-Host "Mode : $env:EMULATOR_MODE"
         Write-Host "Path : $env:EMULATOR_PATH"
@@ -353,35 +345,26 @@ runs:
 
         Write-Host ""
         Write-Host "Current ADB devices:"
-
         & $adb devices
 
         $deviceFound = $false
-
         $devices = & $adb devices
 
         foreach ($line in $devices) {
-
             if ($line -match "^emulator-\d+\s+device$") {
-
                 $deviceFound = $true
-
                 $deviceId = ($line -split "\s+")[0]
 
                 Write-Host ""
                 Write-Host "Existing emulator detected: $deviceId"
-
                 break
             }
         }
 
         if ($deviceFound) {
-
             Write-Host "Using existing running emulator."
-
         }
         else {
-
             $arguments = @(
                 "-avd",
                 $env:AVD_NAME,
@@ -389,17 +372,12 @@ runs:
             )
 
             if ($env:EMULATOR_MODE -eq "headless") {
-
                 Write-Host "Running emulator in HEADLESS mode."
-
                 $arguments += "-no-window"
                 $arguments += "-no-audio"
-
             }
             else {
-
                 Write-Host "Running emulator in HEAD mode."
-
             }
 
             Write-Host ""
@@ -415,7 +393,6 @@ runs:
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to start Android emulator."
             }
-
         }
 
     # =========================================================
@@ -425,7 +402,6 @@ runs:
     - name: Wait for Android emulator
       shell: powershell
       run: |
-
         $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
             "adb"
         }
@@ -443,48 +419,33 @@ runs:
         Write-Host "Waiting for ADB device..."
 
         while ($elapsed -lt $timeout) {
-
             $devices = & $adb devices
-
-            $deviceReady = $devices |
-                Where-Object {
-                    $_ -match "^emulator-\d+\s+device$"
-                }
+            $deviceReady = $devices | Where-Object { $_ -match "^emulator-\d+\s+device$" }
 
             if ($null -ne $deviceReady) {
-
                 Write-Host ""
                 Write-Host "Emulator detected:"
                 $deviceReady
-
                 break
-
             }
 
             Start-Sleep -Seconds 5
             $elapsed += 5
-
             Write-Host "Waiting for emulator device... $elapsed/$timeout seconds"
-
         }
 
         if ($elapsed -ge $timeout) {
-
             Write-Host ""
             Write-Host "=========================================="
             Write-Host "ADB DEVICES"
             Write-Host "=========================================="
-
             & $adb devices
-
             throw "No Android emulator device became available within 300 seconds."
-
         }
 
         # -----------------------------------------------------
         # Wait for Android boot
         # -----------------------------------------------------
-
         Write-Host ""
         Write-Host "Waiting for Android boot to complete..."
 
@@ -492,60 +453,41 @@ runs:
         $bootElapsed = 0
 
         while ($bootElapsed -lt $bootTimeout) {
-
-            $deviceId = (& $adb devices |
-                Where-Object {
-                    $_ -match "^emulator-\d+\s+device$"
-                } |
-                Select-Object -First 1) -split "\s+"
+            $deviceId = (& $adb devices | Where-Object { $_ -match "^emulator-\d+\s+device$" } | Select-Object -First 1) -split "\s+"
 
             if ($deviceId.Count -gt 0) {
-
                 $serial = $deviceId[0]
-
-                $boot = (
-                    & $adb -s $serial shell getprop sys.boot_completed 2>$null
-                ).Trim()
+                $boot = (& $adb -s $serial shell getprop sys.boot_completed 2>$null).Trim()
 
                 Write-Host "[$serial] boot_completed = '$boot'"
 
                 if ($boot -eq "1") {
-
                     Write-Host ""
                     Write-Host "Android boot completed."
-
                     break
-
                 }
             }
 
             Start-Sleep -Seconds 5
             $bootElapsed += 5
-
         }
 
         if ($bootElapsed -ge $bootTimeout) {
-
             Write-Host ""
             Write-Host "=========================================="
             Write-Host "ANDROID BOOT FAILED"
             Write-Host "=========================================="
-
             & $adb devices
-
             throw "Android emulator failed to boot within 300 seconds."
-
         }
 
         # -----------------------------------------------------
         # Final verification
         # -----------------------------------------------------
-
         Write-Host ""
         Write-Host "=========================================="
         Write-Host "ANDROID EMULATOR READY"
         Write-Host "=========================================="
-
         & $adb devices
 
         Write-Host ""
