@@ -1,121 +1,62 @@
-name: Start Local Android Emulator
-description: Start an already-installed local Android emulator (AVD) and wait for it to boot
-
+name: 'Setup Appium and Dependencies'
+description: 'Installs JDK, Appium, caches dependencies, and sets dynamic env variables'
 inputs:
-  avd_name:
-    description: Name of the existing AVD to launch
-    required: false
-    default: "Pixel_API_35"
-  headless:
-    description: Run emulator headless (no visible window)
-    required: false
-    default: "false"
+  environment:
+    description: 'Target Environment (qa, staging, prod)'
+    required: true
 
 runs:
-  using: composite
-
+  using: "composite"
   steps:
-    # ============================================================
-    # START EMULATOR
-    # ============================================================
-    - name: Start Android emulator
-      shell: powershell
-      env:
-        HEADLESS: ${{ inputs.headless }}
-        AVD_NAME: ${{ inputs.avd_name }}
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'maven' # Automatically caches ~/.m2 dependencies
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Appium & UiAutomator2
+      shell: bash
       run: |
-        $avdName = $env:AVD_NAME
-        $emulatorExe = "C:\Android\emulator\emulator.exe"
+        npm install -g appium
+        appium driver install uiautomator2 || echo "UiAutomator2 already installed"
 
-        $logFile = "$env:RUNNER_TEMP\emulator.log"
-        $errFile = "$env:RUNNER_TEMP\emulator-error.log"
-
-        Write-Host ""
-        Write-Host "================================================"
-        Write-Host "          STARTING LOCAL ANDROID EMULATOR"
-        Write-Host "================================================"
-        Write-Host ""
-        Write-Host "AVD: $avdName"
-        Write-Host "HEADLESS: $env:HEADLESS"
-
-        if (-not (Test-Path $emulatorExe)) {
-            Write-Error "emulator.exe not found: $emulatorExe"
-            exit 1
-        }
-
-        $arguments = @("-avd", $avdName, "-verbose")
-
-        if ($env:HEADLESS -eq "true") {
-            $arguments += "-no-window"
-        }
-
-        Write-Host "Command: $emulatorExe $($arguments -join ' ')"
-
-        $process = Start-Process `
-            -FilePath $emulatorExe `
-            -ArgumentList $arguments `
-            -RedirectStandardOutput $logFile `
-            -RedirectStandardError $errFile `
-            -PassThru `
-            -WindowStyle Hidden
-
-        "EMULATOR_LOG=$logFile" | Out-File -FilePath $env:GITHUB_ENV -Append
-        "EMULATOR_ERR=$errFile" | Out-File -FilePath $env:GITHUB_ENV -Append
-        "EMULATOR_PID=$($process.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-        Write-Host "Emulator process started. PID: $($process.Id)"
-
-    # ============================================================
-    # WAIT FOR EMULATOR + BOOT
-    # ============================================================
-    - name: Wait for emulator to be ready
-      shell: powershell
+    - name: Set Dynamic Environment Variables
+      shell: bash
       run: |
-        $udid = "emulator-5554"
+        echo "Injecting variables for ${{ inputs.environment }} environment"
+        
+        # 1. Map environment-specific variables
+        if [ "${{ inputs.environment }}" == "qa" ]; then
+          echo "ENVIRONMENT=qa" >> $GITHUB_ENV
+          echo "APP_PACKAGE=com.swaglabsmobileapp" >> $GITHUB_ENV
+        elif [ "${{ inputs.environment }}" == "staging" ]; then
+          echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+          echo "APP_PACKAGE=com.example.staging" >> $GITHUB_ENV
+        elif [ "${{ inputs.environment }}" == "prod" ]; then
+          echo "ENVIRONMENT=prod" >> $GITHUB_ENV
+          echo "APP_PACKAGE=com.example.prod" >> $GITHUB_ENV
+        fi
 
-        Write-Host ""
-        Write-Host "================================================"
-        Write-Host "          WAITING FOR EMULATOR TO COME ONLINE"
-        Write-Host "================================================"
-
-        $deviceReady = $false
-        for ($i = 0; $i -lt 60; $i++) {
-            $devices = adb devices
-            if ($devices -match "$udid\s+device") {
-                $deviceReady = $true
-                break
-            }
-            Write-Host "Not ready yet. Attempt $($i + 1)/60"
-            Start-Sleep -Seconds 2
-        }
-
-        if (-not $deviceReady) {
-            Write-Error "Emulator did not come online."
-            Write-Host "::group::Emulator logs"
-            if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG }
-            if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR }
-            Write-Host "::endgroup::"
-            adb devices
-            exit 1
-        }
-
-        Write-Host "Emulator is online. Waiting for boot to complete..."
-
-        $bootDone = $false
-        for ($i = 0; $i -lt 90; $i++) {
-            $boot = (adb -s $udid shell getprop sys.boot_completed 2>$null | Out-String).Trim()
-            if ($boot -eq "1") {
-                $bootDone = $true
-                break
-            }
-            Start-Sleep -Seconds 2
-        }
-
-        if (-not $bootDone) {
-            Write-Error "Emulator did not finish booting."
-            exit 1
-        }
-
-        Write-Host ""
-        Write-Host "Android emulator is READY (AVD already has the app installed)."
-        adb devices
+        # 2. Map global common variables
+        echo "APP_ACTIVITY=.SplashActivity" >> $GITHUB_ENV
+        echo "APP_WAIT_ACTIVITY=*" >> $GITHUB_ENV
+        echo "PLATFORM_NAME=Android" >> $GITHUB_ENV
+        echo "AUTOMATION_NAME=UiAutomator2" >> $GITHUB_ENV
+        echo "DEVICE_NAME=Android" >> $GITHUB_ENV
+        echo "ADB_PATH=adb" >> $GITHUB_ENV
+        echo "CHROMEDRIVER_EXECUTABLE=C:\chromedriver.exe" >> $GITHUB_ENV
+        echo "ADB_EXEC_TIMEOUT=60" >> $GITHUB_ENV
+        echo "NEW_COMMAND_TIMEOUT=300" >> $GITHUB_ENV
+        echo "APP_WAIT_FOR_QUIESCENCE=false" >> $GITHUB_ENV
+        echo "DISABLE_WINDOW_ANIMATION=true" >> $GITHUB_ENV
+        echo "AUTO_GRANT_PERMISSIONS=true" >> $GITHUB_ENV
+        echo "UNICODE_KEYBOARD=true" >> $GITHUB_ENV
+        echo "RESET_KEYBOARD=true" >> $GITHUB_ENV
+        echo "WAIT_FOR_IDLE_TIMEOUT=0" >> $GITHUB_ENV
