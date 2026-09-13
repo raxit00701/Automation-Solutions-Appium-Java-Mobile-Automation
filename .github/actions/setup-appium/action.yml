@@ -1,486 +1,174 @@
-name: Setup Appium Android
-
-description: >
-  Prepare Java, Node, Maven, Appium, Android SDK and start
-  the existing local Android emulator.
+name: 'Run Tests'
+description: 'Starts Appium server, triggers TestNG, and stops Appium'
 
 inputs:
-  environment:
-    description: GitHub Environment name
+  server-port:
+    description: 'Port for the Appium server'
     required: true
-
-  environment-config:
-    description: Multiline environment configuration from GitHub Environment variable
-    required: true
-
-  emulator-mode:
-    description: head or headless
-    required: true
-    default: headless
-
-  avd-name:
-    description: Android Virtual Device name
-    required: true
-    default: Pixel_API_35
-
-  emulator-path:
-    description: Path to emulator.exe
-    required: true
-    default: C:\Android\emulator\emulator.exe
+    default: '4723'
 
 runs:
-  using: composite
+  using: "composite"
   steps:
-
     # =========================================================
-    # JAVA
+    # START APPIUM SERVER
     # =========================================================
-
-    - name: Setup Java 17
-      uses: actions/setup-java@v4 # FIXED: v6 does not exist. Latest is v4.
-      with:
-        distribution: temurin
-        java-version: '17'
-        cache: maven
-
-    # =========================================================
-    # LOAD ENVIRONMENT CONFIGURATION
-    # =========================================================
-
-    - name: Load environment configuration
+    - name: Start Appium server
       shell: powershell
       env:
-        ENV_CONFIG: ${{ inputs.environment-config }}
+        APPIUM_PORT: ${{ inputs.server-port }}
       run: |
         Write-Host "=========================================="
-        Write-Host "Environment: ${{ inputs.environment }}"
+        Write-Host "STARTING APPIUM SERVER"
         Write-Host "=========================================="
 
-        if ([string]::IsNullOrWhiteSpace($env:ENV_CONFIG)) {
-            throw "Environment configuration is empty."
+        Write-Host "Starting Appium on port $env:APPIUM_PORT"
+
+        $appiumLog = Join-Path $env:GITHUB_WORKSPACE "appium.log"
+        $appiumErrorLog = Join-Path $env:GITHUB_WORKSPACE "appium-error.log"
+        $appiumPidFile = Join-Path $env:GITHUB_WORKSPACE "appium.pid"
+
+        # Remove old logs
+        if (Test-Path $appiumLog) { Remove-Item $appiumLog -Force }
+        if (Test-Path $appiumErrorLog) { Remove-Item $appiumErrorLog -Force }
+        if (Test-Path $appiumPidFile) { Remove-Item $appiumPidFile -Force }
+
+        Write-Host "Appium stdout: $appiumLog"
+        Write-Host "Appium stderr: $appiumErrorLog"
+
+        # Start Appium. stdout and stderr MUST use different files on Windows.
+        $process = Start-Process `
+            -FilePath "appium" `
+            -ArgumentList "--port", $env:APPIUM_PORT `
+            -RedirectStandardOutput $appiumLog `
+            -RedirectStandardError $appiumErrorLog `
+            -PassThru `
+            -WindowStyle Hidden
+
+        if ($null -eq $process) {
+            throw "Failed to start Appium process."
         }
 
-        $lines = $env:ENV_CONFIG -split "`r?`n"
+        Write-Host "Appium process started."
+        Write-Host "PID: $($process.Id)"
 
-        foreach ($line in $lines) {
-            $line = $line.Trim()
-
-            if ([string]::IsNullOrWhiteSpace($line)) {
-                continue
-            }
-
-            if ($line.StartsWith("#")) {
-                continue
-            }
-
-            if ($line -notmatch "^([^=]+)=(.*)$") {
-                Write-Warning "Skipping invalid environment line: $line"
-                continue
-            }
-
-            $name = $Matches[1].Trim()
-            $value = $Matches[2].Trim()
-
-            "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-            Write-Host "Loaded: $name"
-        }
+        $process.Id | Out-File -FilePath $appiumPidFile -Encoding ascii
 
         Write-Host ""
-        Write-Host "Environment configuration loaded successfully."
+        Write-Host "Waiting for Appium server..."
 
-    # =========================================================
-    # NODE
-    # =========================================================
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4 # FIXED: v7 does not exist. Latest is v4.
-      with:
-        node-version: '20' # Adjusted to latest stable LTS (24 is not standard LTS yet)
-
-    # =========================================================
-    # CACHE NPM
-    # =========================================================
-
-    - name: Get npm cache directory
-      id: npm-cache
-      shell: powershell
-      run: |
-        $cachePath = npm config get cache
-
-        if ([string]::IsNullOrWhiteSpace($cachePath)) {
-            throw "Unable to determine npm cache directory."
-        }
-
-        Write-Host "npm cache: $cachePath"
-        "path=$cachePath" >> $env:GITHUB_OUTPUT
-
-    - name: Cache npm
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.npm-cache.outputs.path }}
-        key: ${{ runner.os }}-npm-appium
-        restore-keys: |
-          ${{ runner.os }}-npm-
-
-    # =========================================================
-    # VERIFY JAVA / MAVEN
-    # =========================================================
-
-    - name: Verify Java and Maven
-      shell: powershell
-      run: |
-        Write-Host "=========================================="
-        Write-Host "JAVA"
-        Write-Host "=========================================="
-        java -version
-
-        Write-Host ""
-        Write-Host "=========================================="
-        Write-Host "MAVEN"
-        Write-Host "=========================================="
-        mvn -version
-
-    # =========================================================
-    # APPIUM
-    # =========================================================
-
-    - name: Install Appium
-      shell: powershell
-      run: |
-        $appium = Get-Command appium -ErrorAction SilentlyContinue
-
-        if ($null -eq $appium) {
-            Write-Host "Appium is not installed."
-            Write-Host "Installing Appium..."
-            npm install -g appium
-        }
-        else {
-            Write-Host "Appium already installed."
-            Write-Host "Location: $($appium.Source)"
-        }
-
-        Write-Host ""
-        Write-Host "Appium version:"
-        appium --version
-
-        # =========================================================
-    # APPIUM UIAUTOMATOR2 DRIVER
-    # =========================================================
-
-    - name: Ensure UiAutomator2 driver
-      shell: powershell
-      run: |
-
-        Write-Host "=========================================="
-        Write-Host "UIAUTOMATOR2 DRIVER"
-        Write-Host "=========================================="
-
-        Write-Host ""
-        Write-Host "Checking UiAutomator2 driver..."
-
-        $driverPath = Join-Path $env:USERPROFILE ".appium\node_modules\appium-uiautomator2-driver"
-
-        if (Test-Path $driverPath) {
-
-            Write-Host "UiAutomator2 driver directory found."
-            Write-Host "Path: $driverPath"
-
-        }
-        else {
-
-            Write-Host "UiAutomator2 driver directory not found."
-            Write-Host "Installing UiAutomator2..."
-
-            appium driver install uiautomator2
-
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to install UiAutomator2 driver."
-            }
-
-            Write-Host "UiAutomator2 installation completed."
-
-        }
-
-        Write-Host ""
-        Write-Host "UiAutomator2 driver check completed."
-        Write-Host ""
-        Write-Host "=========================================="
-        Write-Host "FINAL APPIUM DRIVER LIST"
-        Write-Host "=========================================="
-
-        appium driver list --installed
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Unable to verify installed Appium drivers."
-        }
-
-        Write-Host ""
-        Write-Host "Appium driver setup completed successfully."
-
-    # =========================================================
-    # ADB
-    # =========================================================
-
-    - name: Verify ADB
-      shell: powershell
-      run: |
-        if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
-            $adb = "adb"
-        }
-        else {
-            $adb = $env:ADB_PATH
-        }
-
-        Write-Host "=========================================="
-        Write-Host "ADB"
-        Write-Host "=========================================="
-        Write-Host "ADB command: $adb"
-
-        & $adb version
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "ADB is not working."
-        }
-
-        Write-Host ""
-        Write-Host "ADB devices:"
-        & $adb devices
-
-    # =========================================================
-    # ANDROID EMULATOR
-    # =========================================================
-
-    - name: Verify Android emulator
-      shell: powershell
-      env:
-        EMULATOR_PATH: ${{ inputs.emulator-path }}
-      run: |
-        Write-Host "=========================================="
-        Write-Host "ANDROID EMULATOR"
-        Write-Host "=========================================="
-
-        if (-not (Test-Path $env:EMULATOR_PATH)) {
-            throw "Android emulator not found at: $env:EMULATOR_PATH"
-        }
-
-        Write-Host "Android emulator found:"
-        Write-Host $env:EMULATOR_PATH
-        Write-Host ""
-        Write-Host "Emulator version:"
-
-        & $env:EMULATOR_PATH -version
-
-    # =========================================================
-    # VERIFY AVD
-    # =========================================================
-
-    - name: Verify AVD
-      shell: powershell
-      env:
-        EMULATOR_PATH: ${{ inputs.emulator-path }}
-        AVD_NAME: ${{ inputs.avd-name }}
-      run: |
-        Write-Host "=========================================="
-        Write-Host "ANDROID VIRTUAL DEVICE"
-        Write-Host "=========================================="
-        Write-Host "Checking AVD: $env:AVD_NAME"
-
-        if (-not (Test-Path $env:EMULATOR_PATH)) {
-            throw "Emulator executable not found: $env:EMULATOR_PATH"
-        }
-
-        $avdList = & $env:EMULATOR_PATH -list-avds 2>$null
-
-        Write-Host ""
-        Write-Host "Available AVDs:"
-        $avdList
-
-        if ($avdList -notcontains $env:AVD_NAME) {
-            throw "AVD '$env:AVD_NAME' was not found."
-        }
-
-        Write-Host ""
-        Write-Host "AVD '$env:AVD_NAME' found successfully."
-
-    # =========================================================
-    # START EMULATOR
-    # =========================================================
-
-    - name: Start Android emulator
-      shell: powershell
-      env:
-        EMULATOR_PATH: ${{ inputs.emulator-path }}
-        AVD_NAME: ${{ inputs.avd-name }}
-        EMULATOR_MODE: ${{ inputs.emulator-mode }}
-      run: |
-        $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
-            "adb"
-        }
-        else {
-            $env:ADB_PATH
-        }
-
-        Write-Host "=========================================="
-        Write-Host "STARTING ANDROID EMULATOR"
-        Write-Host "=========================================="
-        Write-Host "AVD  : $env:AVD_NAME"
-        Write-Host "Mode : $env:EMULATOR_MODE"
-        Write-Host "Path : $env:EMULATOR_PATH"
-        Write-Host ""
-
-        & $adb start-server
-
-        if ($LASTEXITCODE -ne 0) {
-            throw "Failed to start ADB server."
-        }
-
-        Write-Host ""
-        Write-Host "Current ADB devices:"
-        & $adb devices
-
-        $deviceFound = $false
-        $devices = & $adb devices
-
-        foreach ($line in $devices) {
-            if ($line -match "^emulator-\d+\s+device$") {
-                $deviceFound = $true
-                $deviceId = ($line -split "\s+")[0]
-
-                Write-Host ""
-                Write-Host "Existing emulator detected: $deviceId"
-                break
-            }
-        }
-
-        if ($deviceFound) {
-            Write-Host "Using existing running emulator."
-        }
-        else {
-            $arguments = @(
-                "-avd",
-                $env:AVD_NAME,
-                "-no-boot-anim"
-            )
-
-            if ($env:EMULATOR_MODE -eq "headless") {
-                Write-Host "Running emulator in HEADLESS mode."
-                $arguments += "-no-window"
-                $arguments += "-no-audio"
-            }
-            else {
-                Write-Host "Running emulator in HEAD mode."
-            }
-
-            Write-Host ""
-            Write-Host "Starting existing AVD:"
-            Write-Host $env:AVD_NAME
-
-            Start-Process `
-                -FilePath $env:EMULATOR_PATH `
-                -ArgumentList $arguments `
-                -WorkingDirectory (Split-Path $env:EMULATOR_PATH) `
-                -WindowStyle Normal
-
-            if ($LASTEXITCODE -ne 0) {
-                throw "Failed to start Android emulator."
-            }
-        }
-
-    # =========================================================
-    # WAIT FOR EMULATOR
-    # =========================================================
-
-    - name: Wait for Android emulator
-      shell: powershell
-      run: |
-        $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) {
-            "adb"
-        }
-        else {
-            $env:ADB_PATH
-        }
-
-        Write-Host "=========================================="
-        Write-Host "WAITING FOR ANDROID EMULATOR"
-        Write-Host "=========================================="
-
-        $timeout = 300
+        $timeout = 60
         $elapsed = 0
-
-        Write-Host "Waiting for ADB device..."
+        $ready = $false
 
         while ($elapsed -lt $timeout) {
-            $devices = & $adb devices
-            $deviceReady = $devices | Where-Object { $_ -match "^emulator-\d+\s+device$" }
+            try {
+                $response = Invoke-WebRequest `
+                    -Uri "http://127.0.0.1:$env:APPIUM_PORT/status" `
+                    -UseBasicParsing `
+                    -TimeoutSec 3 `
+                    -ErrorAction Stop
 
-            if ($null -ne $deviceReady) {
-                Write-Host ""
-                Write-Host "Emulator detected:"
-                $deviceReady
-                break
-            }
-
-            Start-Sleep -Seconds 5
-            $elapsed += 5
-            Write-Host "Waiting for emulator device... $elapsed/$timeout seconds"
-        }
-
-        if ($elapsed -ge $timeout) {
-            Write-Host ""
-            Write-Host "=========================================="
-            Write-Host "ADB DEVICES"
-            Write-Host "=========================================="
-            & $adb devices
-            throw "No Android emulator device became available within 300 seconds."
-        }
-
-        # -----------------------------------------------------
-        # Wait for Android boot
-        # -----------------------------------------------------
-        Write-Host ""
-        Write-Host "Waiting for Android boot to complete..."
-
-        $bootTimeout = 300
-        $bootElapsed = 0
-
-        while ($bootElapsed -lt $bootTimeout) {
-            $deviceId = (& $adb devices | Where-Object { $_ -match "^emulator-\d+\s+device$" } | Select-Object -First 1) -split "\s+"
-
-            if ($deviceId.Count -gt 0) {
-                $serial = $deviceId[0]
-                $boot = (& $adb -s $serial shell getprop sys.boot_completed 2>$null).Trim()
-
-                Write-Host "[$serial] boot_completed = '$boot'"
-
-                if ($boot -eq "1") {
+                if ($response.StatusCode -eq 200) {
+                    $ready = $true
                     Write-Host ""
-                    Write-Host "Android boot completed."
+                    Write-Host "Appium server is READY."
                     break
                 }
             }
+            catch {
+                # Appium is still starting.
+            }
 
-            Start-Sleep -Seconds 5
-            $bootElapsed += 5
+            # Check whether process died
+            $runningProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+
+            if ($null -eq $runningProcess) {
+                Write-Host ""
+                Write-Host "Appium process exited unexpectedly."
+
+                if (Test-Path $appiumLog) {
+                    Write-Host ""
+                    Write-Host "========== APPIUM STDOUT =========="
+                    Get-Content $appiumLog
+                }
+
+                if (Test-Path $appiumErrorLog) {
+                    Write-Host ""
+                    Write-Host "========== APPIUM STDERR =========="
+                    Get-Content $appiumErrorLog
+                }
+
+                throw "Appium server process terminated before becoming ready."
+            }
+
+            Start-Sleep -Seconds 2
+            $elapsed += 2
+            Write-Host "Waiting for Appium... $elapsed/$timeout seconds"
         }
 
-        if ($bootElapsed -ge $bootTimeout) {
+        if (-not $ready) {
             Write-Host ""
             Write-Host "=========================================="
-            Write-Host "ANDROID BOOT FAILED"
+            Write-Host "APPIUM STARTUP FAILED"
             Write-Host "=========================================="
-            & $adb devices
-            throw "Android emulator failed to boot within 300 seconds."
+
+            Write-Host ""
+            Write-Host "Appium STDOUT:"
+            if (Test-Path $appiumLog) { Get-Content $appiumLog }
+
+            Write-Host ""
+            Write-Host "Appium STDERR:"
+            if (Test-Path $appiumErrorLog) { Get-Content $appiumErrorLog }
+
+            throw "Appium server did not become ready within $timeout seconds."
         }
 
-        # -----------------------------------------------------
-        # Final verification
-        # -----------------------------------------------------
         Write-Host ""
-        Write-Host "=========================================="
-        Write-Host "ANDROID EMULATOR READY"
-        Write-Host "=========================================="
-        & $adb devices
+        Write-Host "Appium server running on:"
+        Write-Host "http://127.0.0.1:$env:APPIUM_PORT"
 
-        Write-Host ""
-        Write-Host "Android emulator setup completed successfully."
+    # =========================================================
+    # RUN MAVEN TESTS
+    # =========================================================
+    - name: Run Maven TestNG Suite
+      shell: bash
+      run: mvn clean test -DsuiteXmlFile=testng.xml
+
+    # =========================================================
+    # STOP APPIUM
+    # =========================================================
+    - name: Stop Appium
+      if: always()
+      shell: powershell
+      run: |
+        Write-Host "=========================================="
+        Write-Host "STOPPING APPIUM"
+        Write-Host "=========================================="
+
+        $appiumPidFile = Join-Path $env:GITHUB_WORKSPACE "appium.pid"
+
+        if (Test-Path $appiumPidFile) {
+            $appiumPid = Get-Content $appiumPidFile
+            Write-Host "Appium PID: $appiumPid"
+
+            try {
+                $process = Get-Process -Id ([int]$appiumPid) -ErrorAction SilentlyContinue
+
+                if ($null -ne $process) {
+                    Stop-Process -Id ([int]$appiumPid) -Force
+                    Write-Host "Appium process stopped."
+                }
+                else {
+                    Write-Host "Appium process is already stopped."
+                }
+            }
+            catch {
+                Write-Warning "Unable to stop Appium process: $($_.Exception.Message)"
+            }
+
+            Remove-Item $appiumPidFile -Force -ErrorAction SilentlyContinue
+        }
+        else {
+            Write-Host "Appium PID file not found."
+        }
