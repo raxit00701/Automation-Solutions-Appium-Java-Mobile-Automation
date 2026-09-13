@@ -149,4 +149,19 @@ runs:
           screenshots
           videos
         if-no-files-found: warn
+
+# =========================================================
+    # UPLOAD APPIUM LOGS
+    # =========================================================
+    - name: Upload Appium Logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: appium-server-logs
+        path: |
+          appium.log
+          appium-error.log
+        retention-days: 14
+
+        
         retention-days: 14
