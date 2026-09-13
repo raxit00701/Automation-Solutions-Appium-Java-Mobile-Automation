@@ -1,113 +1,100 @@
-name: Run Appium Tests
-
-description: >
-  Start Appium server and execute Maven Appium/TestNG tests.
+name: 'Run Tests'
+description: 'Start Appium server, execute Maven Appium tests, and capture diagnostics.'
 
 inputs:
   server-port:
-    description: Appium server port
+    description: 'Appium server port'
     required: true
     default: '4724'
 
-  test-directory:
-    description: Test source directory
-    required: true
-    default: 'src/test/java/tests'
-
 runs:
-  using: composite
-
+  using: "composite"
   steps:
-
     # ---------------------------------------------------------
     # Clean old Appium / Allure data
     # ---------------------------------------------------------
-
     - name: Clean previous test output
       shell: powershell
       run: |
-        if (Test-Path "allure-results") {
-            Remove-Item "allure-results" -Recurse -Force
-        }
-
-        if (Test-Path "allure-report") {
-            Remove-Item "allure-report" -Recurse -Force
-        }
-
+        if (Test-Path "allure-results") { Remove-Item "allure-results" -Recurse -Force }
+        if (Test-Path "allure-report") { Remove-Item "allure-report" -Recurse -Force }
         New-Item -ItemType Directory -Force -Path "allure-results" | Out-Null
 
     # ---------------------------------------------------------
     # Start Appium
     # ---------------------------------------------------------
-
     - name: Start Appium server
       shell: powershell
       env:
         APPIUM_PORT: ${{ inputs.server-port }}
       run: |
+        Write-Host "=========================================="
+        Write-Host "STARTING APPIUM SERVER"
+        Write-Host "=========================================="
+
+        $appiumLog = Join-Path $env:GITHUB_WORKSPACE "appium.log"
+        $appiumErrorLog = Join-Path $env:GITHUB_WORKSPACE "appium-error.log"
+        $appiumPidFile = Join-Path $env:GITHUB_WORKSPACE "appium.pid"
+
+        if (Test-Path $appiumLog) { Remove-Item $appiumLog -Force }
+        if (Test-Path $appiumErrorLog) { Remove-Item $appiumErrorLog -Force }
+        if (Test-Path $appiumPidFile) { Remove-Item $appiumPidFile -Force }
 
         Write-Host "Starting Appium on port $env:APPIUM_PORT"
 
-        $logFile = Join-Path $env:GITHUB_WORKSPACE "appium.log"
-
+        # THE FIX: appium.cmd is required on Windows
         $process = Start-Process `
-            -FilePath "appium" `
+            -FilePath "appium.cmd" `
             -ArgumentList "--port", $env:APPIUM_PORT `
-            -RedirectStandardOutput $logFile `
-            -RedirectStandardError $logFile `
-            -PassThru
+            -RedirectStandardOutput $appiumLog `
+            -RedirectStandardError $appiumErrorLog `
+            -PassThru `
+            -WindowStyle Hidden
 
-        $process.Id | Out-File `
-            -FilePath "$env:GITHUB_WORKSPACE\appium.pid" `
-            -Encoding ascii
+        if ($null -eq $process) { throw "Failed to start Appium process." }
 
-        Write-Host "Appium PID: $($process.Id)"
+        Write-Host "Appium process started. PID: $($process.Id)"
+        $process.Id | Out-File -FilePath $appiumPidFile -Encoding ascii
 
+        Write-Host "Waiting for Appium server..."
+        $timeout = 60
+        $elapsed = 0
         $ready = $false
 
-        for ($i = 0; $i -lt 30; $i++) {
-
+        while ($elapsed -lt $timeout) {
             try {
-                $response = Invoke-WebRequest `
-                    -Uri "http://127.0.0.1:$env:APPIUM_PORT/status" `
-                    -UseBasicParsing `
-                    -TimeoutSec 2
-
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:$env:APPIUM_PORT/status" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
                 if ($response.StatusCode -eq 200) {
                     $ready = $true
+                    Write-Host "Appium server is READY."
                     break
                 }
+            } catch { }
+
+            $runningProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            if ($null -eq $runningProcess) {
+                Write-Host "Appium process exited unexpectedly."
+                throw "Appium server process terminated before becoming ready."
             }
-            catch {
-                Start-Sleep -Seconds 2
-            }
+
+            Start-Sleep -Seconds 2
+            $elapsed += 2
         }
 
-        if (-not $ready) {
-            Write-Host "Appium log:"
-            if (Test-Path $logFile) {
-                Get-Content $logFile
-            }
-
-            throw "Appium server failed to start."
-        }
-
-        Write-Host "Appium server is ready."
+        if (-not $ready) { throw "Appium server did not become ready within $timeout seconds." }
 
     # ---------------------------------------------------------
     # Run Maven
     # ---------------------------------------------------------
-
     - name: Run Appium TestNG tests
       shell: powershell
       run: |
-
         Write-Host "Environment: $env:ENVIRONMENT"
         Write-Host "Package: $env:APP_PACKAGE"
         Write-Host "Activity: $env:APP_ACTIVITY"
 
         mvn --batch-mode test `
-          -DserverPort=4724 `
+          -DserverPort=${{ inputs.server-port }} `
           -Dudid=emulator-5554 `
           -DsystemPort=8200 `
           -DchromePort=9515
@@ -115,40 +102,44 @@ runs:
     # ---------------------------------------------------------
     # Always save diagnostics
     # ---------------------------------------------------------
-
     - name: Capture emulator diagnostics
       if: always()
       shell: powershell
       run: |
-
-        $adb = if ($env:ADB_PATH) {
-            $env:ADB_PATH
-        } else {
-            "adb"
-        }
-
+        $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) { "adb" } else { $env:ADB_PATH }
         & $adb devices | Out-File "adb-devices.txt"
-
         & $adb shell getprop | Out-File "android-properties.txt"
 
     # ---------------------------------------------------------
     # Stop Appium
     # ---------------------------------------------------------
-
     - name: Stop Appium
       if: always()
       shell: powershell
       run: |
+        Write-Host "=========================================="
+        Write-Host "STOPPING APPIUM"
+        Write-Host "=========================================="
 
-        if (Test-Path "$env:GITHUB_WORKSPACE\appium.pid") {
+        $appiumPidFile = Join-Path $env:GITHUB_WORKSPACE "appium.pid"
 
-            $pid = Get-Content "$env:GITHUB_WORKSPACE\appium.pid"
+        if (Test-Path $appiumPidFile) {
+            # THE FIX: Avoid using the reserved $pid variable
+            $appiumPid = Get-Content $appiumPidFile
+            Write-Host "Appium PID: $appiumPid"
 
             try {
-                Stop-Process -Id $pid -Force -ErrorAction Stop
-                Write-Host "Appium stopped."
+                $process = Get-Process -Id ([int]$appiumPid) -ErrorAction SilentlyContinue
+                if ($null -ne $process) {
+                    Stop-Process -Id ([int]$appiumPid) -Force
+                    Write-Host "Appium process stopped."
+                } else {
+                    Write-Host "Appium process is already stopped."
+                }
+            } catch {
+                Write-Warning "Unable to stop Appium process: $($_.Exception.Message)"
             }
-            catch {
-                Write-Host "Appium process already stopped."
-            }
+            Remove-Item $appiumPidFile -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-Host "Appium PID file not found."
         }
