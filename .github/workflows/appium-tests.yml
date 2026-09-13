@@ -35,7 +35,7 @@ env:
   ANDROID_AVD: "Pixel_API_35"
   ANDROID_SERIAL: "emulator-5554"
   EMULATOR_EXECUTABLE: "C:\\Android\\emulator\\emulator.exe"
-  EMULATOR_BOOT_TIMEOUT: "180"
+  EMULATOR_BOOT_TIMEOUT: "600" # Increased from 180 to 600 seconds to allow cold boots to complete
 
   APPIUM_PORT: "4724"
   APPIUM_SERVER_URL: "http://127.0.0.1:4724"
@@ -91,7 +91,7 @@ jobs:
           restore-keys: |
             appium-uiautomator2-${{ runner.os }}-${{ runner.arch }}-
 
-     
+      
       - name: Ensure UiAutomator2
         shell: powershell
         run: |
@@ -144,7 +144,7 @@ jobs:
           Write-Host "UDID        : $env:ANDROID_SERIAL"
           Write-Host "Mode        : ${{ inputs.emulator_mode || 'headless' }}"
 
-            - name: Clean previous run
+      - name: Clean previous run
         shell: powershell
         continue-on-error: true
         run: |
@@ -163,7 +163,8 @@ jobs:
           Get-Process emulator -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
 
-          adb kill-server 2>&1 | Out-Null
+          # Run via cmd to prevent PowerShell from throwing a NativeCommandError
+          cmd.exe /c "adb kill-server 2>nul"
 
           Start-Sleep -Seconds 2
 
@@ -178,54 +179,22 @@ jobs:
         run: |
           $mode = "${{ inputs.emulator_mode || 'headless' }}"
 
-          Write-Host "Starting AVD: $env:ANDROID_AVD"
-          Write-Host "Mode: $mode"
-
+          # Format arguments as a single string to avoid PowerShell parsing quirks.
+          # Added -wipe-data to ensure a clean boot state.
           if ($mode -eq "headless") {
-            $arguments = @(
-              "-avd",
-              $env:ANDROID_AVD,
-              "-no-window",
-              "-no-audio",
-              "-no-boot-anim",
-              "-gpu",
-              "swiftshader"
-            )
-          }
-          else {
-            $arguments = @(
-              "-avd",
-              $env:ANDROID_AVD,
-              "-no-boot-anim"
-            )
+            $args = "-avd $env:ANDROID_AVD -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -wipe-data"
+          } else {
+            $args = "-avd $env:ANDROID_AVD -no-boot-anim -wipe-data"
           }
 
           Start-Process `
             -FilePath $env:EMULATOR_EXECUTABLE `
-            -ArgumentList $arguments `
+            -ArgumentList $args `
             -RedirectStandardOutput "$PWD\logs\emulator.log" `
-            -RedirectStandardError "$PWD\logs\emulator-error.log"
+            -RedirectStandardError "$PWD\logs\emulator-error.log" `
+            -NoNewWindow
 
-          Start-Sleep -Seconds 10
-
-          $emulatorProcess = Get-Process emulator -ErrorAction SilentlyContinue
-
-          if ($null -eq $emulatorProcess) {
-            Write-Error "Emulator process failed to start."
-
-            if (Test-Path "logs\emulator.log") {
-              Get-Content "logs\emulator.log" -Tail 300
-            }
-
-            if (Test-Path "logs\emulator-error.log") {
-              Get-Content "logs\emulator-error.log" -Tail 300
-            }
-
-            exit 1
-          }
-
-          Write-Host "Emulator process started successfully."
-
+      
       - name: Wait for emulator
         shell: powershell
         run: |
@@ -261,15 +230,11 @@ jobs:
               Get-Content "logs\emulator.log" -Tail 200
             }
 
-            if (Test-Path "logs\emulator-error.log") {
-              Get-Content "logs\emulator-error.log" -Tail 200
-            }
-
             exit 1
           }
 
 
-     
+      
       - name: Configure emulator
         shell: powershell
         run: |
@@ -445,11 +410,11 @@ jobs:
               -Force `
               -ErrorAction SilentlyContinue
           }
-
-          adb -s $env:ANDROID_SERIAL emu kill 2>$null
+          
+          # Wrapped in cmd.exe to prevent the same NativeCommandError during cleanup
+          cmd.exe /c "adb -s $env:ANDROID_SERIAL emu kill 2>nul"
 
           Start-Sleep -Seconds 5
 
           Get-Process emulator -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
-
