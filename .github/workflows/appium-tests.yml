@@ -35,7 +35,7 @@ env:
   ANDROID_AVD: "Pixel_API_35"
   ANDROID_SERIAL: "emulator-5554"
   EMULATOR_EXECUTABLE: "C:\\Android\\emulator\\emulator.exe"
-  EMULATOR_BOOT_TIMEOUT: "600" # Increased from 180 to 600 seconds to allow cold boots to complete
+  EMULATOR_BOOT_TIMEOUT: "600" # Keeping this at 600 seconds to safely allow the cold boot (-no-snapshot) to finish
 
   APPIUM_PORT: "4724"
   APPIUM_SERVER_URL: "http://127.0.0.1:4724"
@@ -91,7 +91,6 @@ jobs:
           restore-keys: |
             appium-uiautomator2-${{ runner.os }}-${{ runner.arch }}-
 
-      
       - name: Ensure UiAutomator2
         shell: powershell
         run: |
@@ -113,8 +112,6 @@ jobs:
 
           Write-Host "Appium drivers:"
           appium driver list
-
-
 
       - name: Prepare directories
         shell: powershell
@@ -179,12 +176,12 @@ jobs:
         run: |
           $mode = "${{ inputs.emulator_mode || 'headless' }}"
 
-          # Format arguments as a single string to avoid PowerShell parsing quirks.
-          # Added -wipe-data to ensure a clean boot state.
+          # Using -no-snapshot based on your working command. 
+          # Appending standard headless flags if selected in workflow inputs.
           if ($mode -eq "headless") {
-            $args = "-avd $env:ANDROID_AVD -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -wipe-data"
+            $args = "-avd $env:ANDROID_AVD -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect"
           } else {
-            $args = "-avd $env:ANDROID_AVD -no-boot-anim -wipe-data"
+            $args = "-avd $env:ANDROID_AVD -no-snapshot"
           }
 
           Start-Process `
@@ -193,7 +190,6 @@ jobs:
             -RedirectStandardOutput "$PWD\logs\emulator.log" `
             -RedirectStandardError "$PWD\logs\emulator-error.log" `
             -NoNewWindow
-
       
       - name: Wait for emulator
         shell: powershell
@@ -233,8 +229,6 @@ jobs:
             exit 1
           }
 
-
-      
       - name: Configure emulator
         shell: powershell
         run: |
@@ -411,7 +405,7 @@ jobs:
               -ErrorAction SilentlyContinue
           }
           
-          # Wrapped in cmd.exe to prevent the same NativeCommandError during cleanup
+          # Wrapped in cmd.exe to prevent the NativeCommandError during cleanup
           cmd.exe /c "adb -s $env:ANDROID_SERIAL emu kill 2>nul"
 
           Start-Sleep -Seconds 5
