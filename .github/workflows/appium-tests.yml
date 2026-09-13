@@ -20,8 +20,8 @@ on:
 
 jobs:
   mobile-tests:
-    runs-on: self-hosted # Requires your local Windows machine connected as a runner
-    environment: ${{ inputs.environment }} # <--- Binds the job to the selected GitHub Environment
+    runs-on: macos-latest # <--- Uses a fresh GitHub-hosted Mac runner
+    environment: ${{ inputs.environment }} 
     
     steps:
       - name: Checkout Code
