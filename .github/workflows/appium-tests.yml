@@ -205,23 +205,24 @@ jobs:
               -RedirectStandardError "$PWD\logs\emulator-error.log"
           }
 
+      
       - name: Wait for emulator
         shell: powershell
         run: |
           $timeout = [int]$env:EMULATOR_BOOT_TIMEOUT
           $elapsed = 0
+          $serial = $env:ANDROID_SERIAL
+
+          Write-Host "Waiting for emulator: $serial"
 
           while ($elapsed -lt $timeout) {
             $device = adb devices |
-              Select-String "$env:ANDROID_SERIAL\s+device"
+              Select-String "$serial\s+device"
 
             if ($null -ne $device) {
-              $boot = adb `
-                -s $env:ANDROID_SERIAL `
-                shell getprop sys.boot_completed `
-                2>$null
+              $boot = adb -s $serial shell getprop sys.boot_completed 2>$null
 
-              if ($boot.Trim() -eq "1") {
+              if (($boot | Out-String).Trim() -eq "1") {
                 Write-Host "Emulator ready."
                 break
               }
@@ -243,6 +244,8 @@ jobs:
             exit 1
           }
 
+
+     
       - name: Configure emulator
         shell: powershell
         run: |
