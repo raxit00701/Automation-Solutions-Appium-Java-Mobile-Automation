@@ -1,174 +1,142 @@
-name: 'Run Tests'
-description: 'Starts Appium server, triggers TestNG, and stops Appium'
+name: Setup Appium Android
+description: Prepare Java, Node, Maven, Appium, Android SDK and start the existing local Android emulator.
 
 inputs:
-  server-port:
-    description: 'Port for the Appium server'
+  environment:
+    description: GitHub Environment name
     required: true
-    default: '4723'
+  environment-config:
+    description: Multiline environment configuration from GitHub Environment variable
+    required: true
+  emulator-mode:
+    description: head or headless
+    required: true
+    default: headless
+  avd-name:
+    description: Android Virtual Device name
+    required: true
+    default: Pixel_API_35
+  emulator-path:
+    description: Path to emulator.exe
+    required: true
+    default: C:\Android\emulator\emulator.exe
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    # =========================================================
-    # START APPIUM SERVER
-    # =========================================================
-    - name: Start Appium server
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+        cache: maven
+
+    - name: Load environment configuration
       shell: powershell
       env:
-        APPIUM_PORT: ${{ inputs.server-port }}
+        ENV_CONFIG: ${{ inputs.environment-config }}
       run: |
         Write-Host "=========================================="
-        Write-Host "STARTING APPIUM SERVER"
+        Write-Host "Environment: ${{ inputs.environment }}"
         Write-Host "=========================================="
-
-        Write-Host "Starting Appium on port $env:APPIUM_PORT"
-
-        $appiumLog = Join-Path $env:GITHUB_WORKSPACE "appium.log"
-        $appiumErrorLog = Join-Path $env:GITHUB_WORKSPACE "appium-error.log"
-        $appiumPidFile = Join-Path $env:GITHUB_WORKSPACE "appium.pid"
-
-        # Remove old logs
-        if (Test-Path $appiumLog) { Remove-Item $appiumLog -Force }
-        if (Test-Path $appiumErrorLog) { Remove-Item $appiumErrorLog -Force }
-        if (Test-Path $appiumPidFile) { Remove-Item $appiumPidFile -Force }
-
-        Write-Host "Appium stdout: $appiumLog"
-        Write-Host "Appium stderr: $appiumErrorLog"
-
-        # Start Appium. stdout and stderr MUST use different files on Windows.
-        $process = Start-Process `
-            -FilePath "appium" `
-            -ArgumentList "--port", $env:APPIUM_PORT `
-            -RedirectStandardOutput $appiumLog `
-            -RedirectStandardError $appiumErrorLog `
-            -PassThru `
-            -WindowStyle Hidden
-
-        if ($null -eq $process) {
-            throw "Failed to start Appium process."
+        if ([string]::IsNullOrWhiteSpace($env:ENV_CONFIG)) { throw "Environment configuration is empty." }
+        $lines = $env:ENV_CONFIG -split "`r?`n"
+        foreach ($line in $lines) {
+            $line = $line.Trim()
+            if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) { continue }
+            if ($line -notmatch "^([^=]+)=(.*)$") {
+                Write-Warning "Skipping invalid environment line: $line"
+                continue
+            }
+            $name = $Matches[1].Trim()
+            $value = $Matches[2].Trim()
+            "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            Write-Host "Loaded: $name"
         }
 
-        Write-Host "Appium process started."
-        Write-Host "PID: $($process.Id)"
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
 
-        $process.Id | Out-File -FilePath $appiumPidFile -Encoding ascii
-
-        Write-Host ""
-        Write-Host "Waiting for Appium server..."
-
-        $timeout = 60
-        $elapsed = 0
-        $ready = $false
-
-        while ($elapsed -lt $timeout) {
-            try {
-                $response = Invoke-WebRequest `
-                    -Uri "http://127.0.0.1:$env:APPIUM_PORT/status" `
-                    -UseBasicParsing `
-                    -TimeoutSec 3 `
-                    -ErrorAction Stop
-
-                if ($response.StatusCode -eq 200) {
-                    $ready = $true
-                    Write-Host ""
-                    Write-Host "Appium server is READY."
-                    break
-                }
-            }
-            catch {
-                # Appium is still starting.
-            }
-
-            # Check whether process died
-            $runningProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
-
-            if ($null -eq $runningProcess) {
-                Write-Host ""
-                Write-Host "Appium process exited unexpectedly."
-
-                if (Test-Path $appiumLog) {
-                    Write-Host ""
-                    Write-Host "========== APPIUM STDOUT =========="
-                    Get-Content $appiumLog
-                }
-
-                if (Test-Path $appiumErrorLog) {
-                    Write-Host ""
-                    Write-Host "========== APPIUM STDERR =========="
-                    Get-Content $appiumErrorLog
-                }
-
-                throw "Appium server process terminated before becoming ready."
-            }
-
-            Start-Sleep -Seconds 2
-            $elapsed += 2
-            Write-Host "Waiting for Appium... $elapsed/$timeout seconds"
-        }
-
-        if (-not $ready) {
-            Write-Host ""
-            Write-Host "=========================================="
-            Write-Host "APPIUM STARTUP FAILED"
-            Write-Host "=========================================="
-
-            Write-Host ""
-            Write-Host "Appium STDOUT:"
-            if (Test-Path $appiumLog) { Get-Content $appiumLog }
-
-            Write-Host ""
-            Write-Host "Appium STDERR:"
-            if (Test-Path $appiumErrorLog) { Get-Content $appiumErrorLog }
-
-            throw "Appium server did not become ready within $timeout seconds."
-        }
-
-        Write-Host ""
-        Write-Host "Appium server running on:"
-        Write-Host "http://127.0.0.1:$env:APPIUM_PORT"
-
-    # =========================================================
-    # RUN MAVEN TESTS
-    # =========================================================
-    - name: Run Maven TestNG Suite
-      shell: bash
-      run: mvn clean test -DsuiteXmlFile=testng.xml
-
-    # =========================================================
-    # STOP APPIUM
-    # =========================================================
-    - name: Stop Appium
-      if: always()
+    - name: Install Appium
       shell: powershell
       run: |
-        Write-Host "=========================================="
-        Write-Host "STOPPING APPIUM"
-        Write-Host "=========================================="
-
-        $appiumPidFile = Join-Path $env:GITHUB_WORKSPACE "appium.pid"
-
-        if (Test-Path $appiumPidFile) {
-            $appiumPid = Get-Content $appiumPidFile
-            Write-Host "Appium PID: $appiumPid"
-
-            try {
-                $process = Get-Process -Id ([int]$appiumPid) -ErrorAction SilentlyContinue
-
-                if ($null -ne $process) {
-                    Stop-Process -Id ([int]$appiumPid) -Force
-                    Write-Host "Appium process stopped."
-                }
-                else {
-                    Write-Host "Appium process is already stopped."
-                }
-            }
-            catch {
-                Write-Warning "Unable to stop Appium process: $($_.Exception.Message)"
-            }
-
-            Remove-Item $appiumPidFile -Force -ErrorAction SilentlyContinue
+        $appium = Get-Command appium -ErrorAction SilentlyContinue
+        if ($null -eq $appium) {
+            Write-Host "Installing Appium..."
+            npm install -g appium
+        } else {
+            Write-Host "Appium already installed at $($appium.Source)"
         }
-        else {
-            Write-Host "Appium PID file not found."
+        appium --version
+
+    - name: Install UiAutomator2 driver
+      shell: powershell
+      run: |
+        $driverOutput = appium driver list --installed 2>$null
+        if ($driverOutput -match "uiautomator2") {
+            Write-Host "UiAutomator2 driver is already installed."
+        } else {
+            Write-Host "Installing UiAutomator2..."
+            appium driver install uiautomator2
+        }
+
+    - name: Verify ADB
+      shell: powershell
+      run: |
+        $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) { "adb" } else { $env:ADB_PATH }
+        & $adb version
+        & $adb devices
+
+    - name: Start Android emulator
+      shell: powershell
+      env:
+        EMULATOR_PATH: ${{ inputs.emulator-path }}
+        AVD_NAME: ${{ inputs.avd-name }}
+        EMULATOR_MODE: ${{ inputs.emulator-mode }}
+      run: |
+        $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) { "adb" } else { $env:ADB_PATH }
+        & $adb start-server
+        $deviceFound = $false
+        $devices = & $adb devices
+        foreach ($line in $devices) {
+            if ($line -match "^emulator-\d+\s+device$") {
+                $deviceFound = $true
+                break
+            }
+        }
+        if (-not $deviceFound) {
+            $arguments = @("-avd", $env:AVD_NAME, "-no-boot-anim")
+            if ($env:EMULATOR_MODE -eq "headless") {
+                $arguments += "-no-window"
+                $arguments += "-no-audio"
+            }
+            Start-Process -FilePath $env:EMULATOR_PATH -ArgumentList $arguments -WorkingDirectory (Split-Path $env:EMULATOR_PATH) -WindowStyle Normal
+        }
+
+    - name: Wait for Android emulator
+      shell: powershell
+      run: |
+        $adb = if ([string]::IsNullOrWhiteSpace($env:ADB_PATH)) { "adb" } else { $env:ADB_PATH }
+        $timeout = 300
+        $elapsed = 0
+        while ($elapsed -lt $timeout) {
+            $devices = & $adb devices
+            $deviceReady = $devices | Where-Object { $_ -match "^emulator-\d+\s+device$" }
+            if ($null -ne $deviceReady) { break }
+            Start-Sleep -Seconds 5
+            $elapsed += 5
+        }
+        $bootTimeout = 300
+        $bootElapsed = 0
+        while ($bootElapsed -lt $bootTimeout) {
+            $deviceId = (& $adb devices | Where-Object { $_ -match "^emulator-\d+\s+device$" } | Select-Object -First 1) -split "\s+"
+            if ($deviceId.Count -gt 0) {
+                $serial = $deviceId[0]
+                $boot = (& $adb -s $serial shell getprop sys.boot_completed 2>$null).Trim()
+                if ($boot -eq "1") { break }
+            }
+            Start-Sleep -Seconds 5
+            $bootElapsed += 5
         }
