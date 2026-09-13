@@ -1,284 +1,578 @@
-name: Run Appium Tests
-
-description: Run Appium TestNG tests using Maven
+name: Setup Appium Android Environment
+description: Setup Java, Node, Android SDK, Appium, UiAutomator2 and Android emulator
 
 inputs:
-  test-dir:
-    description: Test directory
+  headless:
+    description: Run Android emulator headless
     required: false
-    default: 'src/test/java/tests'
-
-  udid:
-    description: Android device UDID
-    required: false
-    default: 'emulator-5554'
-
-  server-port:
-    description: Appium server port
-    required: false
-    default: '4723'
-
-  system-port:
-    description: UiAutomator2 system port
-    required: false
-    default: '8200'
-
-  chrome-port:
-    description: Chrome driver port
-    required: false
-    default: '9515'
+    default: "true"
 
 runs:
   using: composite
 
   steps:
-    # =========================================================
-    # CACHE MAVEN DEPENDENCIES
-    # =========================================================
-    - name: Cache Maven Dependencies
-      uses: actions/cache@v4
+    # ============================================================
+    # JAVA
+    # ============================================================
+    - name: Setup Java 17
+      uses: actions/setup-java@v4
       with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
+        distribution: temurin
+        java-version: "17"
+        cache: maven
 
-    # =========================================================
-    # FIND AND VALIDATE ANDROID DEVICE
-    # =========================================================
-    - name: Validate Android emulator
+    # ============================================================
+    # NODE
+    # ============================================================
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+
+    # ============================================================
+    # ANDROID ENVIRONMENT
+    # ============================================================
+    - name: Configure Android environment
       shell: powershell
       run: |
-        Write-Host ""
-        Write-Host "======================================"
-        Write-Host "      ANDROID DEVICE CHECK"
-        Write-Host "======================================"
+        $androidHome = "C:\Android\android-sdk"
 
+        Write-Host "ANDROID_HOME = $androidHome"
+
+        if (-not (Test-Path $androidHome)) {
+            New-Item -ItemType Directory -Force -Path $androidHome | Out-Null
+        }
+
+        "ANDROID_HOME=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "ANDROID_SDK_ROOT=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+        $env:ANDROID_HOME = $androidHome
+        $env:ANDROID_SDK_ROOT = $androidHome
+
+        $paths = @(
+            "$androidHome\platform-tools",
+            "$androidHome\emulator",
+            "$androidHome\cmdline-tools\latest\bin"
+        )
+
+        foreach ($path in $paths) {
+            if (Test-Path $path) {
+                Add-Content $env:GITHUB_PATH $path
+                Write-Host "Added PATH: $path"
+            }
+        }
+
+    # ============================================================
+    # ANDROID SDK
+    # ============================================================
+    - name: Install Android SDK components
+      shell: powershell
+      run: |
+        $env:JAVA_TOOL_OPTIONS = ""
+
+        $sdkmanager = "C:\Android\android-sdk\cmdline-tools\latest\bin\sdkmanager.bat"
+
+        if (-not (Test-Path $sdkmanager)) {
+            Write-Error "sdkmanager not found: $sdkmanager"
+            exit 1
+        }
+
+        Write-Host "Accepting Android SDK licenses..."
+        & $sdkmanager --licenses | ForEach-Object { "y" }
+
+        Write-Host "Installing Android SDK components..."
+        & $sdkmanager `
+          "platform-tools" `
+          "emulator" `
+          "build-tools;35.0.0" `
+          "platforms;android-35" `
+          "system-images;android-35;google_apis;x86_64"
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Android SDK installation failed."
+            exit 1
+        }
+
+    # ============================================================
+    # VERIFY ANDROID TOOLS
+    # ============================================================
+    - name: Verify Android tools
+      shell: powershell
+      run: |
+        $env:JAVA_TOOL_OPTIONS = ""
+
+        Write-Host ""
+        Write-Host "================================================"
+        Write-Host "           ANDROID TOOL VERIFICATION"
+        Write-Host "================================================"
+        Write-Host ""
         Write-Host "ADB:"
         adb version
-
         Write-Host ""
-        Write-Host "Connected devices:"
-        adb devices
+        Write-Host "Emulator:"
+        emulator -version
+        Write-Host ""
+        Write-Host "SDK Manager:"
+        sdkmanager --version
+        Write-Host ""
 
-        $device = "${{ inputs.udid }}"
+    # ============================================================
+    # APPIUM
+    # ============================================================
+    - name: Install Appium
+      shell: powershell
+      run: |
+        Write-Host "Installing Appium..."
+        npm install -g appium
 
-        $deviceExists = adb devices | Select-String "^$device\s+device$"
-
-        if (-not $deviceExists) {
-            Write-Host ""
-            Write-Host "ERROR: Android device '$device' is not available."
-            Write-Host ""
-            Write-Host "Available devices:"
-            adb devices
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Appium installation failed."
             exit 1
         }
 
         Write-Host ""
-        Write-Host "Android device '$device' is ready."
+        Write-Host "Appium version:"
+        appium --version
 
-    # =========================================================
-    # SHOW TEST ENVIRONMENT
-    # =========================================================
-    - name: Show test environment
+    # ============================================================
+    # APPIUM UIAUTOMATOR2
+    # ============================================================
+    - name: Install UiAutomator2 driver
       shell: powershell
       run: |
-        Write-Host ""
-        Write-Host "======================================"
-        Write-Host "      APPIUM TEST ENVIRONMENT"
-        Write-Host "======================================"
+        Write-Host "Installing UiAutomator2 driver..."
+        appium driver install uiautomator2
 
-        Write-Host ""
-        Write-Host "Test directory : ${{ inputs.test-dir }}"
-        Write-Host "UDID           : ${{ inputs.udid }}"
-        Write-Host "Appium port    : ${{ inputs.server-port }}"
-        Write-Host "System port    : ${{ inputs.system-port }}"
-        Write-Host "Chrome port    : ${{ inputs.chrome-port }}"
-        Write-Host "Headless       : $env:HEADLESS"
-
-        Write-Host ""
-        Write-Host "Application"
-        Write-Host "--------------------------------------"
-        Write-Host "Environment    : $env:ENVIRONMENT"
-        Write-Host "Package        : $env:APP_PACKAGE"
-        Write-Host "Activity       : $env:APP_ACTIVITY"
-
-        Write-Host ""
-        Write-Host "Appium"
-        Write-Host "--------------------------------------"
-        Write-Host "Platform       : $env:PLATFORM_NAME"
-        Write-Host "Automation     : $env:AUTOMATION_NAME"
-        Write-Host "Device         : $env:DEVICE_NAME"
-
-        Write-Host ""
-        Write-Host "======================================"
-        Write-Host ""
-
-    # =========================================================
-    # START APPIUM
-    # =========================================================
-    - name: Start Appium server
-      shell: powershell
-      run: |
-        $port = "${{ inputs.server-port }}"
-
-        if ([string]::IsNullOrWhiteSpace($port)) {
-            $port = "4723"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "UiAutomator2 installation failed."
+            exit 1
         }
 
         Write-Host ""
-        Write-Host "======================================"
-        Write-Host "       STARTING APPIUM SERVER"
-        Write-Host "======================================"
-        Write-Host "Port: $port"
+        Write-Host "Installed Appium drivers:"
+        appium driver list --installed
+
+    # ============================================================
+    # CREATE AVD
+    # ============================================================
+    - name: Create Android emulator
+      shell: powershell
+      run: |
+        $env:JAVA_TOOL_OPTIONS = ""
+
+        $avdName = "CI_Android"
+        $package = "system-images;android-35;google_apis;x86_64"
+
+        Write-Host ""
+        Write-Host "================================================"
+        Write-Host "          CREATING ANDROID EMULATOR"
+        Write-Host "================================================"
+        Write-Host ""
+        Write-Host "AVD name: $avdName"
+        Write-Host "System image: $package"
+
+        $existingAvd = & avdmanager list avd 2>$null
+
+        if ($existingAvd -match "Name:\s*$avdName") {
+            Write-Host "AVD already exists."
+        }
+        else {
+            Write-Host "Creating AVD..."
+            $yes = "no"
+
+            $yes | & avdmanager create avd `
+                --name $avdName `
+                --package $package `
+                --device "pixel_2" `
+                --force
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to create Android AVD."
+                exit 1
+            }
+        }
+
+        Write-Host ""
+        Write-Host "Available AVDs:"
+        emulator -list-avds
+
+    # ============================================================
+    # START EMULATOR
+    # ============================================================
+    - name: Start Android emulator
+      shell: powershell
+      env:
+        HEADLESS: ${{ inputs.headless }}
+      run: |
+        $avdName = "CI_Android"
+        $emulatorDir = "C:\Android\android-sdk\emulator"
+        $emulatorExe = "$emulatorDir\emulator.exe"
+
+        $logFile = "$env:RUNNER_TEMP\emulator.log"
+        $errFile = "$env:RUNNER_TEMP\emulator-error.log"
+
+        Write-Host ""
+        Write-Host "================================================"
+        Write-Host "          STARTING ANDROID EMULATOR"
+        Write-Host "================================================"
         Write-Host ""
 
-        # -----------------------------------------------------
-        # Verify Appium installation
-        # -----------------------------------------------------
-        Write-Host "Appium version:"
-        appium --version
-        Write-Host ""
+        if (-not (Test-Path $emulatorExe)) {
+            Write-Error "emulator.exe not found: $emulatorExe"
+            exit 1
+        }
 
-        # -----------------------------------------------------
-        # Start Appium through CMD
-        # -----------------------------------------------------
-        $appiumLog = "$env:RUNNER_TEMP\appium.log"
-        $appiumErrorLog = "$env:RUNNER_TEMP\appium-error.log"
+        # Clean adb server state before we start, so nothing stale
+        # interferes with the new emulator registering itself.
+        Write-Host "Restarting ADB server cleanly..."
+        adb kill-server
+        Start-Sleep -Seconds 2
+        adb start-server
 
-        Write-Host "Starting Appium..."
+        Write-Host "AVD: $avdName"
+        Write-Host "HEADLESS: $env:HEADLESS"
 
-        Start-Process `
-          -FilePath "cmd.exe" `
-          -ArgumentList "/c", "appium --address 127.0.0.1 --port $port --base-path /wd/hub" `
-          -RedirectStandardOutput $appiumLog `
-          -RedirectStandardError $appiumErrorLog `
-          -WindowStyle Hidden
+        function Start-Emulator {
+            param(
+                [string[]]$ExtraArgs,
+                [string]$AttemptLabel
+            )
 
-        Write-Host "Appium process started."
+            $arguments = @(
+                "-avd", $avdName,
+                "-port", "5554",
+                "-no-snapshot",
+                "-no-audio",
+                "-no-boot-anim",
+                "-camera-back", "none",
+                "-camera-front", "none",
+                "-cores", "2",
+                "-memory", "2048",
+                "-verbose"
+            ) + $ExtraArgs
 
-        # -----------------------------------------------------
-        # Wait for Appium
-        # -----------------------------------------------------
-        Write-Host ""
-        Write-Host "Waiting for Appium server..."
+            if ($env:HEADLESS -eq "true") {
+                $arguments += "-no-window"
+            }
 
-        $ready = $false
+            Write-Host ""
+            Write-Host "[$AttemptLabel] Command: $emulatorExe $($arguments -join ' ')"
+            Write-Host ""
 
-        for ($i = 0; $i -lt 30; $i++) {
-            try {
-                $response = Invoke-WebRequest `
-                    -Uri "http://127.0.0.1:$port/wd/hub/status" `
-                    -UseBasicParsing `
-                    -TimeoutSec 2
+            Push-Location $emulatorDir
+            $proc = Start-Process `
+                -FilePath $emulatorExe `
+                -ArgumentList $arguments `
+                -RedirectStandardOutput $logFile `
+                -RedirectStandardError $errFile `
+                -PassThru `
+                -WindowStyle Hidden
+            Pop-Location
 
-                if ($response.StatusCode -eq 200) {
-                    $ready = $true
-                    Write-Host ""
-                    Write-Host "Appium responded successfully."
+            Write-Host "[$AttemptLabel] Emulator process started. PID: $($proc.Id)"
+
+            # Poll for early death over 120s. Observed failure mode: the
+            # process can register with adb (visible as "offline") and
+            # still die shortly after - a shorter window missed this.
+            $crashed = $false
+            for ($i = 0; $i -lt 60; $i++) {
+                Start-Sleep -Seconds 2
+                if ($proc.HasExited) {
+                    $crashed = $true
                     break
                 }
             }
-            catch {
-                Write-Host "Appium not ready yet... attempt $($i + 1)/30"
+
+            if ($crashed) {
+                # Ensure the exit code is actually populated before we read it.
+                $proc.WaitForExit(5000) | Out-Null
+            }
+
+            return @{ Process = $proc; Crashed = $crashed }
+        }
+
+        # Attempt 1: hardware-accelerated via WHPX. GitHub-hosted Windows
+        # runners expose Windows Hypervisor Platform (WHPX), which the
+        # emulator can detect and use - this is the standard fast/stable
+        # path. Forcing -accel off makes the emulator fall back to pure
+        # software CPU emulation (TCG), which is far slower and prone to
+        # hanging or dying under CI resource constraints.
+        $result = Start-Emulator -AttemptLabel "attempt 1 (WHPX accel)" -ExtraArgs @(
+            "-gpu", "swiftshader_indirect",
+            "-accel", "on"
+        )
+
+        if ($result.Crashed) {
+            Write-Host ""
+            Write-Host "[attempt 1] Emulator died within 120s (Exit Code $($result.Process.ExitCode))."
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (attempt 1)"
+            if (Test-Path $logFile) { Get-Content $logFile } else { Write-Host "(empty/not found)" }
+            Write-Host "::endgroup::"
+            Write-Host "::group::EMULATOR ERROR LOG (attempt 1)"
+            if (Test-Path $errFile) { Get-Content $errFile } else { Write-Host "(empty/not found)" }
+            Write-Host "::endgroup::"
+
+            Write-Host ""
+            Write-Host "Retrying with a more conservative, maximally-compatible flag set (-gpu guest, -no-accel)..."
+
+            $result = Start-Emulator -AttemptLabel "attempt 2 (fallback)" -ExtraArgs @(
+                "-gpu", "guest",
+                "-no-accel"
+            )
+        }
+
+        if ($result.Crashed) {
+            $exitCode = $result.Process.ExitCode
+            Write-Error "Emulator process died on both attempts (final Exit Code $exitCode)."
+
+            $errContent = if (Test-Path $errFile) { Get-Content $errFile -Raw } else { "(not found)" }
+            $logContent = if (Test-Path $logFile) { Get-Content $logFile -Raw } else { "(not found)" }
+
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (final attempt, full)"
+            Write-Host $logContent
+            Write-Host "::endgroup::"
+            Write-Host "::group::EMULATOR ERROR LOG (final attempt, full)"
+            Write-Host $errContent
+            Write-Host "::endgroup::"
+
+            if ($env:GITHUB_STEP_SUMMARY) {
+                "## Emulator failed to start on both attempts" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "Final exit code: $exitCode" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard error (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($errContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard output (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($logContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+
+            Write-Host ""
+            Write-Host "--- Common causes ---"
+            Write-Host "1. Hyper-V / Windows Hypervisor Platform enabled on the runner, conflicting with QEMU."
+            Write-Host "2. Corrupt or incomplete AVD - try deleting and recreating it without cache."
+            Write-Host "3. Insufficient disk space on the runner for the system image / userdata."
+            exit 1
+        }
+
+        $process = $result.Process
+        "EMULATOR_LOG=$logFile" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "EMULATOR_ERR=$errFile" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "EMULATOR_PID=$($process.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+        Write-Host ""
+        Write-Host "Emulator survived initial 120s window. PID: $($process.Id)"
+        Write-Host ""
+        Write-Host "ADB devices after emulator startup:"
+        adb devices
+
+    # ============================================================
+    # WAIT FOR EMULATOR
+    # ============================================================
+    - name: Wait for Android emulator
+      shell: powershell
+      run: |
+        $udid = "emulator-5554"
+
+        # Max wait: 180 attempts * 3s = 9 minutes. Software-rendered or
+        # unaccelerated x86_64 emulators on CI can take several minutes
+        # just to register with adb, separate from booting.
+        $maxAttempts = 180
+        $sleepSeconds = 3
+        $deviceReady = $false
+
+        Write-Host ""
+        Write-Host "================================================"
+        Write-Host "          WAITING FOR ANDROID EMULATOR"
+        Write-Host "================================================"
+        Write-Host ""
+        Write-Host "Waiting for: $udid"
+        Write-Host "Max wait: $($maxAttempts * $sleepSeconds) seconds"
+
+        for ($i = 0; $i -lt $maxAttempts; $i++) {
+
+            # Bail out early and loudly if the emulator process itself
+            # has died - no point waiting 9 minutes on a corpse.
+            if ($env:EMULATOR_PID) {
+                $proc = Get-Process -Id $env:EMULATOR_PID -ErrorAction SilentlyContinue
+                if (-not $proc) {
+                    Write-Error "Emulator process (PID $env:EMULATOR_PID) is no longer running."
+
+                    $errContent = if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR -Raw } else { "(not found: $env:EMULATOR_ERR)" }
+                    $logContent = if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG -Raw } else { "(not found: $env:EMULATOR_LOG)" }
+
+                    Write-Host "::group::EMULATOR ERROR LOG (full)"
+                    Write-Host $errContent
+                    Write-Host "::endgroup::"
+
+                    Write-Host "::group::EMULATOR STANDARD OUTPUT (full)"
+                    Write-Host $logContent
+                    Write-Host "::endgroup::"
+
+                    if ($env:GITHUB_STEP_SUMMARY) {
+                        "## Emulator crashed while waiting for it to come online" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "PID $env:EMULATOR_PID exited before adb reported it as ``device``." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "### Standard error (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        ($errContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        "### Standard output (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        ($logContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                        '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                    }
+
+                    exit 1
+                }
+            }
+
+            $devices = adb devices
+
+            if ($devices -match "$udid\s+device") {
+                Write-Host ""
+                Write-Host "Android emulator detected and online."
+                $deviceReady = $true
+                break
+            }
+
+            if ($devices -match "$udid\s+offline") {
+                Write-Host "Emulator is offline, waiting for it to come online... ($($i + 1)/$maxAttempts)"
+            } else {
+                Write-Host "Emulator not ready. Attempt $($i + 1)/$maxAttempts"
+            }
+
+            # Print diagnostics periodically instead of only at the end,
+            # so a failed run is debuggable from the first attempt.
+            if (($i + 1) % 15 -eq 0) {
+                Write-Host ""
+                Write-Host "--- Periodic diagnostics (attempt $($i + 1)) ---"
+                Write-Host "adb devices -l:"
+                adb devices -l
+                Write-Host ""
+                Write-Host "Tail of emulator log:"
+                if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG -Tail 20 }
+                Write-Host ""
+                Write-Host "Tail of emulator error log:"
+                if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR -Tail 20 }
+                Write-Host "--- End diagnostics ---"
+                Write-Host ""
+            }
+
+            Start-Sleep -Seconds $sleepSeconds
+        }
+
+        if (-not $deviceReady) {
+            Write-Error "Android emulator was not detected."
+
+            $errContent = if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR -Raw } else { "(not found)" }
+            $logContent = if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG -Raw } else { "(not found)" }
+
+            Write-Host "::group::EMULATOR ERROR LOG (full)"
+            Write-Host $errContent
+            Write-Host "::endgroup::"
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (full)"
+            Write-Host $logContent
+            Write-Host "::endgroup::"
+
+            Write-Host ""
+            Write-Host "Final ADB devices:"
+            adb devices -l
+
+            Write-Host ""
+            Write-Host "Is emulator process still alive?"
+            if ($env:EMULATOR_PID) {
+                Get-Process -Id $env:EMULATOR_PID -ErrorAction SilentlyContinue
+            }
+
+            if ($env:GITHUB_STEP_SUMMARY) {
+                "## Android emulator never came online (timed out)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard error (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($errContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "### Standard output (last 200 lines)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                ($logContent -split "`n" | Select-Object -Last 200) -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+
+            exit 1
+        }
+
+    # ============================================================
+    # WAIT FOR ANDROID BOOT
+    # ============================================================
+    - name: Wait for Android boot
+      shell: powershell
+      run: |
+        $udid = "emulator-5554"
+
+        Write-Host ""
+        Write-Host "================================================"
+        Write-Host "           WAITING FOR ANDROID BOOT"
+        Write-Host "================================================"
+        Write-Host ""
+        Write-Host "Using UDID: $udid"
+
+        # 150 attempts * 2s = 5 minutes for boot to complete.
+        $bootDone = $false
+        for ($i = 0; $i -lt 150; $i++) {
+            $boot = adb -s $udid shell getprop sys.boot_completed 2>$null
+            $boot = ($boot | Out-String).Trim()
+
+            Write-Host "Boot status (Attempt $($i + 1)/150): '$boot'"
+
+            if ($boot -eq "1") {
+                Write-Host ""
+                Write-Host "Android boot completed successfully."
+                $bootDone = $true
+                break
             }
             Start-Sleep -Seconds 2
         }
 
-        # -----------------------------------------------------
-        # Fail if Appium did not start
-        # -----------------------------------------------------
-        if (-not $ready) {
+        if (-not $bootDone) {
+            Write-Error "Android emulator did not finish booting."
             Write-Host ""
-            Write-Host "======================================"
-            Write-Host "       APPIUM FAILED TO START"
-            Write-Host "======================================"
+            Write-Host "ADB devices:"
+            adb devices -l
             Write-Host ""
-            Write-Host "Appium output:"
-            Write-Host "--------------------------------------"
-            if (Test-Path $appiumLog) { Get-Content $appiumLog }
-            
+            Write-Host "::group::EMULATOR ERROR LOG (tail)"
+            if (Test-Path $env:EMULATOR_ERR) { Get-Content $env:EMULATOR_ERR -Tail 50 }
+            Write-Host "::endgroup::"
             Write-Host ""
-            Write-Host "Appium error output:"
-            Write-Host "--------------------------------------"
-            if (Test-Path $appiumErrorLog) { Get-Content $appiumErrorLog }
-            
+            Write-Host "::group::EMULATOR STANDARD OUTPUT (tail)"
+            if (Test-Path $env:EMULATOR_LOG) { Get-Content $env:EMULATOR_LOG -Tail 50 }
+            Write-Host "::endgroup::"
             exit 1
         }
 
-        Write-Host ""
-        Write-Host "======================================"
-        Write-Host "      APPIUM SERVER IS READY"
-        Write-Host "======================================"
-        Write-Host "URL: http://127.0.0.1:$port/wd/hub"
-        Write-Host ""
-
-    # =========================================================
-    # RUN MAVEN TESTS
-    # =========================================================
-    - name: Run TestNG tests
+    # ============================================================
+    # DISABLE ANIMATIONS
+    # ============================================================
+    - name: Configure emulator
       shell: powershell
       run: |
-        Write-Host ""
-        Write-Host "======================================"
-        Write-Host "         RUNNING APPIUM TESTS"
-        Write-Host "======================================"
-        Write-Host ""
+        $udid = "emulator-5554"
 
-        $udid = "${{ inputs.udid }}"
-        $serverPort = "${{ inputs.server-port }}"
-        $systemPort = "${{ inputs.system-port }}"
-        $chromePort = "${{ inputs.chrome-port }}"
-
-        Write-Host "UDID           : $udid"
-        Write-Host "Appium port    : $serverPort"
-        Write-Host "System port    : $systemPort"
-        Write-Host "Chrome port    : $chromePort"
-        Write-Host "Headless       : $env:HEADLESS"
-        Write-Host ""
-
-        mvn clean test `
-          "-Dudid=$udid" `
-          "-DserverPort=$serverPort" `
-          "-DsystemPort=$systemPort" `
-          "-DchromePort=$chromePort" `
-          "-DtestDir=${{ inputs.test-dir }}" `
-          "-Dheadless=$env:HEADLESS"
-
-        $exitCode = $LASTEXITCODE
-
-        Write-Host ""
-        Write-Host "Maven exit code: $exitCode"
-
-        if ($exitCode -ne 0) {
-            Write-Host ""
-            Write-Host "Tests failed."
-            exit $exitCode
+        if ($env:DISABLE_WINDOW_ANIMATION -eq "true") {
+            Write-Host "Disabling Android animations on $udid..."
+            adb -s $udid shell settings put global window_animation_scale 0
+            adb -s $udid shell settings put global transition_animation_scale 0
+            adb -s $udid shell settings put global animator_duration_scale 0
         }
 
         Write-Host ""
-        Write-Host "Tests completed successfully."
-
-    # =========================================================
-    # SHOW TEST OUTPUT
-    # =========================================================
-    - name: Show generated test directories
-      if: always()
-      shell: powershell
-      run: |
+        Write-Host "Final emulator state:"
+        adb devices
         Write-Host ""
-        Write-Host "======================================"
-        Write-Host "       GENERATED TEST FILES"
-        Write-Host "======================================"
-
-        if (Test-Path "target") { Write-Host "✓ target directory exists." }
-        else { Write-Host "✗ target directory not found." }
-
-        if (Test-Path "allure-results") { Write-Host "✓ allure-results directory exists." }
-        else { Write-Host "✗ allure-results directory not found." }
-
-        if (Test-Path "test-output") { Write-Host "✓ test-output directory exists." }
-
-        if (Test-Path "screenshots") { Write-Host "✓ screenshots directory exists." }
-
-        Write-Host ""
+        Write-Host "Android emulator is READY."
