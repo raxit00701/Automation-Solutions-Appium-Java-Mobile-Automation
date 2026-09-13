@@ -1,42 +1,120 @@
 name: Appium Mobile Tests
 
 on:
+
   workflow_dispatch:
+
     inputs:
+
       environment:
-        description: 'Environment to run the tests against'
+        description: Test environment
         required: true
-        default: 'QA'
         type: choice
+        default: QA
+
         options:
           - QA
           - STAGE
           - PROD
-      headless:
-        description: 'Run Emulator in Headless mode'
+
+      emulator_mode:
+        description: Android emulator display mode
         required: true
-        default: true
-        type: boolean
+        type: choice
+        default: headless
+
+        options:
+          - headless
+          - head
+
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+
+permissions:
+  contents: read
+
 
 jobs:
-  mobile-tests:
-    runs-on: macos-latest # <--- Uses a fresh GitHub-hosted Mac runner
-    environment: ${{ inputs.environment }} 
-    
+
+  appium-tests:
+
+    name: Appium Android Tests
+
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - appium-android
+
+    # -------------------------------------------------------
+    # GitHub Environment
+    # -------------------------------------------------------
+
+    environment: ${{ inputs.environment || 'QA' }}
+
+    timeout-minutes: 60
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
 
-      - name: 1. Setup Appium & Dependencies
+      # -----------------------------------------------------
+      # Checkout
+      # -----------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # -----------------------------------------------------
+      # Show runner information
+      # -----------------------------------------------------
+
+      - name: Runner information
+        shell: powershell
+        run: |
+
+          Write-Host "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner architecture: $env:RUNNER_ARCH"
+          Write-Host "Workspace: $env:GITHUB_WORKSPACE"
+
+      # -----------------------------------------------------
+      # Setup Appium / Android
+      # -----------------------------------------------------
+
+      - name: Setup Appium
         uses: ./.github/actions/setup-appium
-        with:
-          environment: ${{ inputs.environment }}
 
-      - name: 2. Run Emulator & Tests
+        with:
+
+          environment: ${{ inputs.environment || 'QA' }}
+
+          emulator-mode: ${{ inputs.emulator_mode || 'headless' }}
+
+          avd-name: Pixel_API_35
+
+          emulator-path: C:\Android\emulator\emulator.exe
+
+      # -----------------------------------------------------
+      # Run tests
+      # -----------------------------------------------------
+
+      - name: Run Appium tests
         uses: ./.github/actions/run-tests
-        with:
-          headless: ${{ inputs.headless }}
 
-      - name: 3. Generate Reports & Artifacts
-        if: always() # Runs even if the tests fail
+        with:
+
+          server-port: '4724'
+
+          test-directory: src/test/java/tests
+
+      # -----------------------------------------------------
+      # Allure
+      # -----------------------------------------------------
+
+      - name: Generate Allure report
+        if: always()
         uses: ./.github/actions/allure-report
