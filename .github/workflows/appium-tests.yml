@@ -1,4 +1,4 @@
-
+```yaml
 name: Appium Mobile Automation
 
 on:
@@ -605,3 +605,4 @@ jobs:
             Stop-Process -Force -ErrorAction SilentlyContinue
 
           Write-Host "Cleanup complete."
+```
